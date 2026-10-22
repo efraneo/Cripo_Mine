@@ -1,0 +1,11 @@
+# Secrets NUNCA en el repo (github público): sólo en tu máquina y en
+# Streamlit Cloud (secrets del dashboard desplegado).
+.streamlit/secrets.toml
+.streamlit/*.toml
+!/.streamlit/secrets.toml.example
+
+# Estado/datos locales del minero
+data/
+__pycache__/
+*.pyc
+*.log
