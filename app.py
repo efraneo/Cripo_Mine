@@ -18,6 +18,7 @@ from binance_api import make_binance, BinanceAPI, format_deposit_status
 from pool_stats import (get_price, network_stats, estimate_profitability,
                         f2pool_stats, nicehash_stats)
 import ui_components as ui
+import panel_agresivo
 
 st.set_page_config(page_title="⛏️ BTC Miner Studio", page_icon="⛏️",
                    layout="wide", initial_sidebar_state="expanded")
@@ -129,7 +130,8 @@ def miner_alive() -> bool:
 # ---------------------------------------------------------------------------
 with st.sidebar:
     st.markdown("## ⛏️ BTC Miner Studio")
-    st.caption("Minado SHA-256 en Python · métricas reales · envío a Binance")
+    st.caption("v2 AGRESIVA: motor multi-pool con failover, Telegram y "
+               "pagos a Binance · pestaña 'Motor agresivo'")
 
     c1, c2 = st.columns(2)
     c1.markdown("🟢 **Pool**" if miner_alive() else "🔴 **Pool**")
@@ -191,8 +193,8 @@ with st.sidebar:
 # ---------------------------------------------------------------------------
 # TABS
 # ---------------------------------------------------------------------------
-tab_live, tab_net, tab_bin, tab_hist, tab_help = st.tabs(
-    ["📊 Panel en vivo", "🌐 Red y Pool", "🏦 Binance",
+tab_live, tab_agro, tab_net, tab_bin, tab_hist, tab_help = st.tabs(
+    ["📊 Panel en vivo", "🚀 Motor agresivo", "🌐 Red y Pool", "🏦 Binance",
      "📜 Historial y logs", "⚙️ Ayuda y Secrets"])
 
 
@@ -253,7 +255,14 @@ with tab_live:
 
 
 # ===========================================================================
-# PESTAÑA 2 · RED Y POOL
+# PESTAÑA 2 · MOTOR AGRESIVO (v2: multi-pool, failover, Telegram, pagos)
+# ===========================================================================
+with tab_agro:
+    panel_agresivo.render(RT, CFG)
+
+
+# ===========================================================================
+# PESTAÑA 3 · RED Y POOL
 # ===========================================================================
 with tab_net:
     st.header("🌐 Estado real de la red Bitcoin")

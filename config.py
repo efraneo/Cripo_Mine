@@ -23,6 +23,18 @@ NOMBRES DE VARIABLES DE SECRETS (cópialas en .streamlit/secrets.toml):
     NICEHASH_API_KEY       → (opcional) clave API NiceHash
     NICEHASH_API_SECRET    → (opcional) secreto API NiceHash
     NICEHASH_ORG_ID        → (opcional) ID de organización NiceHash
+
+V2 — INTERVENCIÓN AGRESIVA (motor multi-pool + Telegram + pagos):
+
+    TELEGRAM_BOT_TOKEN     → Token del bot (BotFather) para alertas/control
+    TELEGRAM_CHAT_ID       → Tu chat_id de Telegram
+    WALLET_XMR             → Wallet Monero (MoneroOcean / SupportXMR)
+    AGGRESSIVE_MODE        → true = motor agresivo con failover
+    FAILOVER_MINUTES       → Min sin shares antes de saltar de pool (12)
+    ROTATE_MINUTES         → Rotación preventiva cada N min (0 = off)
+    CPU_TEMP_MAX           → Pausa térmica automática (85 °C)
+    DAILY_SUMMARY_HOUR     → Hora del resumen diario por Telegram (20)
+    PAYOUT_ALERT_MIN_BTC   → Balance que dispara aviso de payout (0.0005)
 """
 import os
 
@@ -31,8 +43,15 @@ import os
 # ---------------------------------------------------------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
+LOG_DIR = os.path.join(BASE_DIR, "logs")
+BIN_DIR = os.path.join(BASE_DIR, "bin")
 os.makedirs(DATA_DIR, exist_ok=True)
-METRICS_FILE = os.path.join(DATA_DIR, "metrics.json")
+os.makedirs(LOG_DIR, exist_ok=True)
+os.makedirs(BIN_DIR, exist_ok=True)
+# El daemon (run_miner.py) escribe sus métricas en otro archivo para no
+# pisar las del modo python del dashboard:
+METRICS_FILE = os.environ.get(
+    "MINER_METRICS_FILE", os.path.join(DATA_DIR, "metrics.json"))
 
 # ---------------------------------------------------------------------------
 # Valores por defecto (se sobreescriben con .streamlit/secrets.toml)
@@ -54,6 +73,16 @@ DEFAULTS = {
     "NICEHASH_API_KEY": "",
     "NICEHASH_API_SECRET": "",
     "NICEHASH_ORG_ID": "",
+    # --- v2: intervención agresiva -------------------------------------
+    "TELEGRAM_BOT_TOKEN": "",
+    "TELEGRAM_CHAT_ID": "",
+    "WALLET_XMR": "",
+    "AGGRESSIVE_MODE": True,
+    "FAILOVER_MINUTES": 12,
+    "ROTATE_MINUTES": 0,
+    "CPU_TEMP_MAX": 85.0,
+    "DAILY_SUMMARY_HOUR": 20,
+    "PAYOUT_ALERT_MIN_BTC": 0.0005,
 }
 
 
@@ -81,6 +110,15 @@ def load_secrets() -> dict:
         cfg["AUTO_REFRESH_SECONDS"] = max(2, int(cfg["AUTO_REFRESH_SECONDS"]))
     except Exception:
         cfg["AUTO_REFRESH_SECONDS"] = 5
+    # v2: tipos de los nuevos secrets
+    for _k in ("FAILOVER_MINUTES", "ROTATE_MINUTES", "CPU_TEMP_MAX",
+               "DAILY_SUMMARY_HOUR", "PAYOUT_ALERT_MIN_BTC"):
+        try:
+            cfg[_k] = float(cfg[_k])
+        except Exception:
+            pass
+    cfg["AGGRESSIVE_MODE"] = str(cfg.get("AGGRESSIVE_MODE", True)).lower() \
+        not in ("0", "false", "no", "off")
     return cfg
 
 
@@ -134,6 +172,30 @@ POOL_CATALOG = [
         "usuario": "tu_dirección_BTC",
         "nota": "NiceHash te paga por el hash vendido (no es solo-mining). "
                 "Configura retiro automático a Binance en su panel.",
+    },
+    {
+        "nombre": "unMineable — RandomX pagando en BTC (MOTOR AGRESIVO v2)",
+        "url": "rx.unmineable.com:3333",
+        "usuario": "BTC:<tu_dirección_BTC>.<worker> (o tu alias)",
+        "nota": "Endpoint RandomX oficial 2026 (alt: stratum+ssl://rx."
+                "unmineable.com:443). Mina con XMRig y convierte a BTC "
+                "automáticamente: el pago llega a tu dirección de Binance. "
+                "Umbral real vía API (~0.00075 BTC), ajustable en Addresses.",
+    },
+    {
+        "nombre": "MoneroOcean — auto-cambio de algoritmo (paga XMR)",
+        "url": "gulf.moneroocean.stream:10128",
+        "usuario": "tu wallet Monero",
+        "nota": "Con el fork XMRig-MO prueba 13+ algoritmos y se queda con "
+                "el más rentable para tu CPU. Paga XMR: Binance NO acepta "
+                "XMR desde 2024-02 (delisting), usa wallet propia.",
+    },
+    {
+        "nombre": "SupportXMR — pool veterano Monero (respaldo, paga XMR)",
+        "url": "pool.supportxmr.com:3333",
+        "usuario": "tu wallet Monero",
+        "nota": "Estable desde 2016, vardiff bajo ideal para CPUs pequeñas. "
+                "Es el tercer objetivo del failover agresivo.",
     },
 ]
 
@@ -215,4 +277,24 @@ SECRETS_HELP = [
     ("NICEHASH_API_KEY", "Opcional: API key NiceHash (api.nicehash.com → API Management)."),
     ("NICEHASH_API_SECRET", "Opcional: secreto API NiceHash."),
     ("NICEHASH_ORG_ID", "Opcional: Organization ID de NiceHash."),
+    # v2 — intervención agresiva
+    ("TELEGRAM_BOT_TOKEN", "Token del bot de Telegram (créalo con @BotFather "
+                           "/newbot). Habilita alertas instantáneas y "
+                           "control remoto (/pausar /reanudar /estado)."),
+    ("TELEGRAM_CHAT_ID", "Tu chat_id de Telegram. Envía /start a tu bot y "
+                         "usa el botón '¿Cuál es mi chat_id?' del dashboard."),
+    ("WALLET_XMR", "Wallet Monero para MoneroOcean/SupportXMR (cobro en "
+                   "XMR). Opcional si solo usas unMineable → BTC."),
+    ("AGGRESSIVE_MODE", "true = daemon con motor agresivo multi-pool y "
+                        "failover automático."),
+    ("FAILOVER_MINUTES", "Minutos sin shares aceptados antes de saltar de "
+                         "pool (default 12)."),
+    ("ROTATE_MINUTES", "Rotación preventiva de pools cada N minutos "
+                       "(0 = desactivada)."),
+    ("CPU_TEMP_MAX", "Temperatura CPU (°C) que dispara la pausa térmica "
+                     "automática (default 85)."),
+    ("DAILY_SUMMARY_HOUR", "Hora local (0-23) del resumen diario por "
+                           "Telegram (default 20)."),
+    ("PAYOUT_ALERT_MIN_BTC", "Balance en el pool (BTC) que dispara el aviso "
+                             "'payout en camino' por Telegram."),
 ]

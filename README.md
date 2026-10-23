@@ -13,11 +13,66 @@ depósito.
 
 ---
 
+## 🚀 V2 — INTERVENCIÓN AGRESIVA (nuevo)
+
+**El diagnóstico**: si minaste BTC directo (SHA-256) con CPU un día entero y
+no salió nada, es matemática, no mala suerte: la red BTC corre a cientos de
+EH/s y una CPU a ~0.5 MH/s (probabilidad de bloque ≈ 1 en billones). El
+modo `python` queda como laboratorio/lotería educativa.
+
+**La intervención** (pestaña **Motor agresivo** del dashboard, motor
+`aggressive_engine.py` como daemon 24/7): la CPU pasa a minar **RandomX**
+(donde sí es competitiva) y el pipeline rota entre 3 objetivos con FAILOVER
+automático:
+
+| # | Objetivo | Pool | Algoritmo | Pago |
+|---|----------|------|-----------|------|
+| 1 | unMineable | `rx.unmineable.com:3333` (alt SSL `:443`) | rx/0 | **BTC directo a tu dirección de Binance** |
+| 2 | MoneroOcean | `gulf.moneroocean.stream:10128` | auto (13+ algos, fork XMRig-MO) | XMR a tu wallet |
+| 3 | SupportXMR | `pool.supportxmr.com:3333` | rx/0 | XMR (respaldo veterano) |
+
+- **Descarga automática de XMRig**: el daemon baja solo el binario
+  precompilado (fork MoneroOcean v6.26.0-mo5 desde
+  `github.com/MoneroOcean/xmrig_setup`; fallback: xmrig oficial 6.26.0
+  estático). No instalas nada a mano.
+- **Failover**: sin shares aceptados en `FAILOVER_MINUTES`, proceso muerto
+  o pool sin respuesta → cambia de objetivo y registra el motivo.
+- **Telegram** (`telegram_bot.py`): alertas de arranque/failover/depósitos
+  y CONTROL REMOTO: `/estado` `/pausar` `/reanudar` `/cambiar` `/ganancias`.
+- **Vigilante de pagos** (`payout_manager.py`): detecta depósitos BTC en tu
+  Binance vía API y avisa al instante con su valor en USD; monitorea balance
+  en unMineable y MoneroOcean y avisa "payout en camino" al cruzar el umbral.
+- **Watchdog** (`watchdog.py`): pausa térmica automática (CPU_TEMP_MAX),
+  alerta de caída de internet y resumen diario.
+- **Pipeline a Binance**: el pool paga a tu dirección de depósito → el BTC
+  aparece en tu cuenta sin que toques nada (tu API key de Binance sigue
+  siendo SOLO de lectura).
+
+⚠️ **Nota importante**: Binance eliminó XMR (2024-02-20): NUNCA uses XMR
+como dirección de pago en pools que van a Binance. Por eso unMineable paga
+en BTC. El XMR de MoneroOcean/SupportXMR va a tu wallet propia.
+
+⚠️ **Antivirus (Windows)**: XMRig suele dar falso positivo. Excluye la
+carpeta `bin/` en Windows Defender o descarga el binario manualmente desde
+el repo oficial y pon la ruta en `EXTERNAL_MINER_PATH`.
+
+Expectativa honesta: laptop moderna ≈ **USD 0.02–0.15/día** en RandomX.
+No es una fortuna, pero es flujo REAL, continuo, y llega a Binance solo.
+
+---
+
 ## 📁 Estructura (todos los archivos < 600 líneas)
 
 | Archivo | Qué hace |
 |---|---|
-| `app.py` | Dashboard Streamlit: panel en vivo, red, Binance, historial, ayuda |
+| `app.py` | Dashboard Streamlit: panel en vivo, motor agresivo, red, Binance, historial, ayuda |
+| `aggressive_engine.py` | **V2**: motor multi-pool (unMineable/MoneroOcean/SupportXMR) + failover + descarga de XMRig |
+| `run_miner.py` | **V2**: daemon headless 24/7 (mina aunque cierres el dashboard) |
+| `telegram_bot.py` | **V2**: alertas Telegram + control remoto (/pausar /estado…) |
+| `payout_manager.py` | **V2**: vigila depósitos en Binance y balances de pools, avisa por Telegram |
+| `watchdog.py` | **V2**: pausa térmica, alertas de internet, resumen diario |
+| `control.py` | **V2**: canal de control app ↔ daemon ↔ Telegram (control.json) |
+| `panel_agresivo.py` | **V2**: pestaña del dashboard para el motor agresivo |
 | `stratum_miner.py` | Minero Stratum V1 SHA-256 nativo (pool / bench / demo) |
 | `miner_manager.py` | Gestor de binario externo (XMRig / cpuminer-opt) con parsing de logs |
 | `binance_api.py` | Cliente Binance: dirección de depósito, balances, depósitos, precio |
@@ -32,8 +87,9 @@ depósito.
 ```bash
 pip install -r requirements.txt
 cp .streamlit/secrets.toml.example .streamlit/secrets.toml
-# edita secrets.toml con tu dirección BTC y (opcional) tus claves Binance
+# edita secrets.toml: dirección BTC de Binance + Telegram + (opcional) wallet XMR
 streamlit run app.py
+# luego: pestaña "Motor agresivo" → INICIAR DAEMON (o: python run_miner.py)
 ```
 
 ## 🔑 Variables de secrets (cópialas en `.streamlit/secrets.toml`)
@@ -56,6 +112,15 @@ streamlit run app.py
 | `NICEHASH_API_KEY` | Opcional: API key NiceHash |
 | `NICEHASH_API_SECRET` | Opcional: secreto NiceHash |
 | `NICEHASH_ORG_ID` | Opcional: Organization ID NiceHash |
+| `TELEGRAM_BOT_TOKEN` | **V2**: token del bot (BotFather) para alertas y control |
+| `TELEGRAM_CHAT_ID` | **V2**: tu chat_id (botón "¿Cuál es mi chat_id?" en el dashboard) |
+| `WALLET_XMR` | **V2**: wallet Monero (objetivos MoneroOcean/SupportXMR) |
+| `AGGRESSIVE_MODE` | **V2**: `true` = daemon con motor agresivo |
+| `FAILOVER_MINUTES` | **V2**: min sin shares antes de cambiar de pool (12) |
+| `ROTATE_MINUTES` | **V2**: rotación preventiva cada N min (0 = off) |
+| `CPU_TEMP_MAX` | **V2**: pausa térmica automática (°C, default 85) |
+| `DAILY_SUMMARY_HOUR` | **V2**: hora del resumen diario por Telegram (20) |
+| `PAYOUT_ALERT_MIN_BTC` | **V2**: balance que dispara aviso de payout (0.0005) |
 
 ## 🏦 Cómo llega el BTC a tu Binance (lo más seguro)
 
