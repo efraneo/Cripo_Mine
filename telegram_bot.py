@@ -34,7 +34,7 @@ TIMEOUT_SEND = 12
 ICON = {"ok": "🟢", "warn": "🟡", "error": "🔴", "info": "⚪", "money": "💸"}
 
 
-def _api(cfg, method: str, params: dict = None, timeout: int = 15):
+def _api(cfg, method: str, params: dict = None, timeout: int = 10):
     token = (cfg.get("TELEGRAM_BOT_TOKEN") or "").strip()
     if not token:
         raise RuntimeError("Falta TELEGRAM_BOT_TOKEN en secrets")

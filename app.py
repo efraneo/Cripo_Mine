@@ -329,13 +329,24 @@ with tab_bin:
         st.warning("⚠️ Modo SIMULADO: no hay claves configuradas. Añade "
                    "BINANCE_API_KEY y BINANCE_API_SECRET en "
                    "`.streamlit/secrets.toml` (permiso de lectura es suficiente).")
-    else:
+
+    # IMPORTANTE: ninguna llamada a la API de Binance se ejecuta sola.
+    # Antes ping/balance/historial corrían en CADA rerun (3 x 12 s) y
+    # congelaban el dashboard si la API estaba lenta o geo-bloqueada.
+    if not is_sim and st.button("🔌 Probar conexión con Binance"):
         try:
-            ping = bx.ping()
-            st.success(f"✅ Conectado a Binance · latencia {ping['latency_ms']} ms · "
-                       f"claves con permiso de lectura")
+            st.session_state["bin_ping"] = bx.ping()["latency_ms"]
+            st.session_state["bin_ok"] = True
         except Exception as e:
-            st.error(f"❌ No se pudo conectar: {e}")
+            st.session_state["bin_ok"] = False
+            st.session_state["bin_err"] = str(e)
+    if st.session_state.get("bin_ok") is True:
+        st.success(f"✅ Conectado a Binance · "
+                   f"{st.session_state.get('bin_ping')} ms · claves con "
+                   f"permiso de lectura")
+    elif st.session_state.get("bin_ok") is False:
+        st.error(f"❌ No se pudo conectar: "
+                 f"{st.session_state.get('bin_err')}")
 
     price, src = get_price_cached("binance")
     if price:
@@ -365,36 +376,47 @@ with tab_bin:
             st.session_state["pool_user_in"] = addr
             st.success("Listo: se usará al iniciar el minero (pestaña lateral).")
 
-    st.subheader("💰 Balance spot")
-    try:
-        bals = bx.spot_balances()
-        if bals:
-            import pandas as pd
-            st.dataframe(pd.DataFrame(bals), width="stretch",
-                         hide_index=True)
-        else:
-            st.caption("Sin saldos distintos de cero (todavía 😎).")
-    except Exception as e:
-        st.error(f"Balance no disponible: {e}")
+    st.subheader("💰 Balance spot e historial de depósitos")
+    st.caption("Se consultan solo cuando pulsas el botón: la API de Binance "
+               "no se toca en cada recarga (antes congelaba la app).")
+    if st.button("🔄 Consultar balance e historial ahora"):
+        with st.spinner("Consultando Binance…"):
+            try:
+                st.session_state["bals"] = bx.spot_balances()
+            except Exception as e:
+                st.session_state["bals"] = []
+                st.session_state["bals_err"] = str(e)
+            try:
+                st.session_state["deps"] = bx.deposit_history("BTC", 15)
+            except Exception as e:
+                st.session_state["deps"] = []
+                st.session_state["deps_err"] = str(e)
+    bals = st.session_state.get("bals") or []
+    deps = st.session_state.get("deps") or []
+    if st.session_state.get("bals_err"):
+        st.caption(f"Balance no disponible: "
+                   f"{st.session_state['bals_err']}")
+    if bals:
+        import pandas as pd
+        st.dataframe(pd.DataFrame(bals), width="stretch", hide_index=True)
+    elif "bals" in st.session_state:
+        st.caption("Sin saldos distintos de cero (todavía 😎).")
 
-    st.subheader("🧾 Historial de depósitos BTC")
-    try:
-        deps = bx.deposit_history("BTC", 15)
-        if deps:
-            import pandas as pd
-            rows = [{
-                "fecha": time.strftime("%Y-%m-%d %H:%M",
-                                       time.localtime(d.get("insertTime", 0) / 1000)),
-                "monto": d.get("amount"),
-                "estado": format_deposit_status(d.get("status", -1)),
-                "tx": str(d.get("txId", ""))[:24] + "…",
-            } for d in deps]
-            st.dataframe(pd.DataFrame(rows), width="stretch",
-                         hide_index=True)
-        else:
-            st.caption("Aún no hay depósitos BTC en tu cuenta.")
-    except Exception as e:
-        st.error(f"Historial no disponible: {e}")
+    if st.session_state.get("deps_err"):
+        st.caption(f"Historial no disponible: "
+                   f"{st.session_state['deps_err']}")
+    if deps:
+        import pandas as pd
+        rows = [{
+            "fecha": time.strftime("%Y-%m-%d %H:%M",
+                                   time.localtime(d.get("insertTime", 0) / 1000)),
+            "monto": d.get("amount"),
+            "estado": format_deposit_status(d.get("status", -1)),
+            "tx": str(d.get("txId", ""))[:24] + "…",
+        } for d in deps]
+        st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
+    elif "deps" in st.session_state:
+        st.caption("Aún no hay depósitos BTC en tu cuenta.")
 
     st.info("🔒 **Seguridad**: esta app solo necesita permiso de **lectura**. "
             "Los sats llegan a Binance porque el pool paga a tu dirección de "

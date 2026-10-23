@@ -14,11 +14,12 @@ import hashlib
 import hmac
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 
 UA = {"User-Agent": "btc-miner-studio/1.0"}
-TIMEOUT = 8
+TIMEOUT = 6
 
 # Recompensa actual por bloque (post-halving 2024): 3.125 BTC
 BLOCK_REWARD_BTC = 3.125
@@ -86,12 +87,23 @@ _PRICE_CHAIN = {
 
 
 def get_price(preferred: str = "binance") -> tuple:
-    """Devuelve (precio, fuente). Prueba la fuente preferida y su fallback."""
+    """Devuelve (precio, fuente). Lanza TODAS las fuentes de la cadena EN
+    PARALELO y devuelve el primer resultado válido: un exchange caído o
+    bloqueado ya no congela el dashboard (peor caso = 1 timeout, no 5)."""
     cadena = _PRICE_CHAIN.get(preferred, _PRICE_CHAIN["binance"])
-    for fn in cadena:
-        p = fn()
-        if p and p > 0:
-            return p, fn.__name__.replace("price_", "").capitalize()
+    ex = ThreadPoolExecutor(max_workers=len(cadena))
+    try:
+        futs = {ex.submit(fn): fn for fn in cadena}
+        for fut in as_completed(futs):
+            try:
+                p = fut.result()
+            except Exception:
+                continue
+            if p and p > 0:
+                return p, futs[fut].__name__.replace("price_", "").capitalize()
+    finally:
+        # no espera a los hilos lentos: el dashboard nunca se queda colgado
+        ex.shutdown(wait=False, cancel_futures=True)
     return None, "no disponible"
 
 

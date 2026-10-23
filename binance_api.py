@@ -34,7 +34,7 @@ class BinanceError(Exception):
 
 class BinanceAPI:
     def __init__(self, api_key: str = "", api_secret: str = "",
-                 base_url: str = BASE_URL, timeout: int = 12):
+                 base_url: str = BASE_URL, timeout: int = 8):
         self.key = (api_key or "").strip()
         self.secret = (api_secret or "").strip()
         self.base = base_url.rstrip("/")

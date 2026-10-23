@@ -37,6 +37,18 @@ def _read_json(path):
         return {}
 
 
+@st.cache_data(ttl=120, show_spinner=False)
+def _latencias_paralelo(urls: tuple) -> dict:
+    """Sondea todos los pools EN PARALELO (un pool caído no frena a los
+    demás) y cachea el resultado 2 min: sin esto, cada rerun del dashboard
+    esperaba hasta 3 s POR POOL en serie y el arranque se congelaba."""
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=max(4, len(urls))) as ex:
+        resultados = list(ex.map(
+            lambda u: (u, probe_pool(u, timeout=2.5)), urls))
+    return dict(resultados)
+
+
 def _daemon_df(n: int = 400) -> pd.DataFrame:
     data = _read_json(DAEMON_METRICS)
     hist = (data.get("history") or [])[-n:]
@@ -182,9 +194,11 @@ def render(RT: dict, CFG: dict):
 
     st.markdown("**Objetivos del motor agresivo** (estado según tus secrets)")
     df_t, has_btc, has_xmr = _target_badges(CFG)
-    lat = {t["id"]: probe_pool(t["url"]) for t in TARGETS}
+    lat_por_url = _latencias_paralelo(tuple(t["url"] for t in TARGETS))
+    url_de = {t["id"]: t["url"] for t in TARGETS}
     df_t["latencia"] = df_t["id"].map(
-        lambda i: f"{lat[i]:.0f} ms" if lat.get(i) else "sin respuesta")
+        lambda i: (f"{lat_por_url[url_de[i]]:.0f} ms"
+                   if lat_por_url.get(url_de[i]) else "sin respuesta"))
     st.dataframe(df_t, width="stretch", hide_index=True)
     if not (has_btc or has_xmr):
         st.warning("Configura BTC_PAYOUT_ADDRESS y/o WALLET_XMR en "
