@@ -258,6 +258,35 @@ class TelegramController(threading.Thread):
             lines.append(f"Depósitos {coin} rastreados por el daemon: "
                          f"<b>{deps:.6f}</b> {coin}")
             send(self.cfg, "\n".join(lines), "money")
+        elif cmd == "/hidra":
+            st = self.get_status(include_earnings=True)
+            pay = st.get("payout") or {}
+            um = pay.get("unmineable") or {}
+            coin = pay.get("coin", "USDT")
+            bal = float(um.get("balance", 0) or 0)
+            thr = float(um.get("threshold", 0) or 0)
+            acred = float(pay.get("binance_acred", 0) or 0)
+            total = bal + acredit
+            eng = st.get("engine") or {}
+            t = eng.get("target") or {}
+            hashrate = st.get("hashrate_txt", "—")
+            worker = (self.cfg.get("WORKER_NAME") or "cpu01")
+            send(self.cfg, (
+                "<b>MODo HIDRA</b>\n"
+                f"Cabeza activa: <b>{worker}</b>\n"
+                f"Hashrate: <b>{hashrate}</b>\n"
+                f"🏦 En el pool (sin pagar): <b>{bal:.6f} {coin}</b>\n"
+                f"({bal/thr*100:.2f}% de {thr:g})\\n"
+                f"✅ Ya en tu Binance Spot: <b>{acred:.6f} {coin}</b>\n"
+                f"💰 TOTAL ADQUIRIDO: <b>{total:.6f} {coin}</b>\n"
+                "¿Cómo sumar más cabezas?\n"
+                "• Clona este repo en otro PC o laptop que ya tengas (o compre una usada con energía ya pagada).\n"
+                "• En ese nuevo equipo: mismo repo, mismos secrets MÍNIMOS (solo PAYOUT_COIN=USDT, USDT_PAYOUT_ADDRESS, WORKER_NAME distinto).\n"
+                "• Todos los workers apuntan a la MISMA dirección USDT: el saldo se AUTOMÁGENEmente agrega en unMineable → UN solo balance → UN solo depósito al cruzar 1.5 USDT.\n"
+                "• En unMineable.com → Address → Settings puedes subir el umbral de pago (default 1.5 USDT TRC20) para depósitos más grandes y menos frecuentes.\n"
+                "• Código de referido en unMineable: 0.75% de descuento en la tarifa (de 1% → 0.75%) si activas un código custom en la dirección.\n"
+                "• Ideal: cada máquina nueva = +~730 H/s rx/0 = +0.015 USDT/día aproximadamente al umbral. A la larga la única forma real de arrastre.\n"
+                "• Cuidado: 8 hilos en esta laptop ya dejan RAM al 99% (sqlservr+Chrome). Si agregas PCs, cada uno es independiente."), "info")
         elif cmd in ("/ayuda", "/start", "/help"):
             send(self.cfg, (
                 "<b>Comandos disponibles</b>\n"
@@ -266,6 +295,7 @@ class TelegramController(threading.Thread):
                 "/reanudar — vuelve a minar\n"
                 "/cambiar — fuerza failover al siguiente pool\n"
                 "/ganancias — balances y depósitos\n"
-                "/ayuda — esta lista"), "info")
+                "/ayuda — esta lista\n"
+                "/hidra — ver estado de la cabeza y cómo sumar más para arrastrar más ganancia y hacer un solo depósito"), "info")
         else:
             send(self.cfg, "Comando no reconocido. /ayuda", "info")

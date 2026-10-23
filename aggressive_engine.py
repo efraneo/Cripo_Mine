@@ -298,7 +298,8 @@ class AggressiveEngine:
         return inner
 
     def _make_miner(self, target, threads) -> ExternalMiner:
-        user = target["user_fn"](self.cfg, "cpu01")
+        worker = self.cfg.get("WORKER_NAME") or "cpu01"
+        user = target["user_fn"](self.cfg, worker)
         return ExternalMiner(
             binary_path=self.binary_path,
             extra_args="--no-color --donate-level=1",

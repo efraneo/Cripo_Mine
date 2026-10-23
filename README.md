@@ -196,6 +196,33 @@ streamlit run app.py
 - Binance API docs: https://developers.binance.com/docs
 - NiceHash API docs: https://www.nicehash.com/docs
 
+## 🛠️ Modo Hidra — arrastrar más ganancia y hacer un solo depósito
+
+**¿Qué es la Hidra?**  
+Una **hidra** son varios mineros (una laptop, un PC de escritorio, una máquina vieja tuya, etc.) que **todos apuntan a la misma dirección USDT en unMineable**. Como unMineable agrega el balance de todos los workers bajo una misma dirección, obtienes **UN solo balance** y **UN solo depósito** automático cuando cruzas el umbral de pago (1.5 USDT por defecto en red TRC20).
+
+**¿Cómo funciona?**  
+1. **Este equipo**: ya está minando. Lo ves en /estado o el panel.  
+2. **Otro equipo**: clona el repo, pon los mismos secrets mínimos:  
+   - `PAYOUT_COIN = USDT`  
+   - `USDT_PAYOUT_ADDRESS` = TU dirección de depósito Binance (TRC20)  
+   - `WORKER_NAME` = distinto (p.ej. `laptop02`, `pc-de-escritorio`)  
+   - (Opcional) `TELEGRAM_BOT_TOKEN` / `CHAT_ID` si quieres alertas allí.  
+3. **Resultado**: los hashrates se suman en unMineable → balance creciente → cuando llegue a 1.5 USDT, unMineable paga **UN solo depósito** a tu Binance Spot.
+
+**¿Cómo arrastra más ganancia?**  
+- **Más dispositivos**: cada PC/laptop con CPU decente y 6 hilos RandomX suma ~730 H/s. No es rentabilidad exponencial, pero es la única vía real de escalar sin pagar servicios cloud costosos (cloud mining suele perder dinero por comisiones y electricidad).  
+- **Subir el umbral en unMineable**: ve a unmineable.com → Address → Settings → Payout Threshold. Subir de 1.5 a 5/10/50 USDT hará depósitos más grandes pero menos frecuentes. Por defecto paga una vez al día cuando se cruza el umbral.  
+- **Código de referido**: en unmineable.com puedes activar un código custom. Esto reduce la tarifa minera de 1% a 0.75%: de cada 100 USD minados, antes 1 USD iba a la plataforma y ahora solo 0.75 USD. Es pequeño pero honesto y acumulativo.
+
+**Advertencia de hardware**  
+Esta laptop (i5-1235U, 8 GB RAM) al 6 hilos deja la RAM en ~99% (sqlservr + Chrome). Si pruebas 8 hilos el sistema empieza a swap. Lo recomendable: 6 hilos por máquina, y cada máquina nueva es independiente (sin competir por RAM/CPU).
+
+**Comandos útiles**  
+- `/hidra` en Telegram: ver estado de la cabeza actual + instrucciones.  
+- `/estado`: balance, hashrate, total adquirido.  
+- `/ganancias`: desglose completo.
+
 ## ⚖️ Nota legal/energética
 
 Minar consume electricidad. Calcula tu costo kWh antes de dejar la máquina
