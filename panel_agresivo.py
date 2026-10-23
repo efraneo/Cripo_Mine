@@ -17,7 +17,7 @@ import streamlit as st
 
 import control
 import telegram_bot as tg
-from config import (DATA_DIR, format_hashrate, format_btc, format_uptime)
+from config import (DATA_DIR, format_hashrate, format_btc)
 from aggressive_engine import TARGETS, probe_pool
 from payout_manager import (fetch_unmineable, fetch_moneroocean,
                             fetch_binance_deposits)
@@ -81,7 +81,6 @@ def _target_badges(cfg):
 # ===========================================================================
 def render(RT: dict, CFG: dict):
     st.header("Intervención agresiva: multi-pool + failover + Telegram")
-    store = RT["store"]
 
     with st.expander("Por qué tu minero anterior no generó NADA (léeme)"):
         st.markdown(

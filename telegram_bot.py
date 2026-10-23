@@ -23,7 +23,6 @@ Alertas automáticas que envía el daemon:
   pausa térmica · resumen diario.
 """
 import threading
-import time
 
 import requests
 
