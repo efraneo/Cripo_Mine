@@ -255,7 +255,7 @@ def render(RT: dict, CFG: dict):
             price, psrc = get_price("binance")
             um = fetch_unmineable(_pdir, coin=_coin)
             mo = fetch_moneroocean((CFG.get("WALLET_XMR") or "").strip())
-            deps = fetch_binance_deposits(RT["binance"], 10)
+            deps = fetch_binance_deposits(RT["binance"], 10, coin=_coin)
         k1, k2, k3 = st.columns(3)
         k1.metric("unMineable (sin pagar)",
                   format_btc(um["balance"]) if um else "—",
@@ -272,22 +272,24 @@ def render(RT: dict, CFG: dict):
             rows = [{"fecha": time.strftime("%Y-%m-%d %H:%M",
                                             time.localtime(
                                                 d.get("insertTime", 0) / 1000)),
-                     "BTC": d.get("amount"),
+                     _coin: d.get("amount"),
                      "estado": {0: "pendiente", 1: "acreditado"}.get(
                          d.get("status"), d.get("status")),
                      "tx": str(d.get("txId", ""))[:20] + "…"} for d in deps]
             st.dataframe(pd.DataFrame(rows), width="stretch",
                          hide_index=True)
         else:
-            st.caption("Aún no hay depósitos BTC en tu Binance: el primer "
-                       "pago llega cuando el balance pagable cruce el umbral "
-                       "del pool (~0.00075 BTC por defecto; ajústalo en "
-                       "unmineable.com → Addresses para cobrar antes).")
+            umbral_txt = (f"{um['payment_threshold']:g} {_coin}" if um
+                          else "el umbral del pool")
+            st.caption(f"Aún no hay depósitos {_coin} en tu Binance: el "
+                       f"primer pago llega cuando el balance pagable cruce "
+                       f"{umbral_txt} (ajústalo en unmineable.com → "
+                       "Addresses para cobrar antes).")
     pay_state = _read_json(PAYOUT_STATE_FILE)
     if pay_state:
         st.caption(f"Vigilante de pagos: {len(pay_state.get('known_txids', []))}"
                    f" depósitos rastreados · total visto "
-                   f"{pay_state.get('deposit_total_btc', 0):.8f} BTC "
+                   f"{pay_state.get('deposit_total_btc', 0):.6f} {_coin} "
                    f"(desde que corre el daemon).")
 
     # ------------------------------------------------------------------

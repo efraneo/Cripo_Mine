@@ -33,7 +33,7 @@ from collections import deque
 import requests
 
 import control
-from config import BASE_DIR, BIN_DIR
+from config import BIN_DIR, DATA_DIR
 from miner_manager import ExternalMiner
 
 UA = {"User-Agent": "btc-miner-studio-agresivo/2.0"}
@@ -51,7 +51,10 @@ OFFICIAL_LINUX = ("https://github.com/xmrig/xmrig/releases/download/v6.26.0/"
 OFFICIAL_WINDOWS = ("https://github.com/xmrig/xmrig/releases/download/"
                     "v6.26.0/xmrig-6.26.0-windows-x64.zip")
 
-STATE_FILE = os.path.join(BASE_DIR, "data", "engine_state.json")
+# Estado en DATA_DIR (no BASE_DIR/data): en la nube Streamlit solo /tmp es
+# escribible y config._ensure_dir redirige DATA_DIR allí; BASE_DIR/data
+# fallaría en silencio y el panel no vería los failovers.
+STATE_FILE = os.path.join(DATA_DIR, "engine_state.json")
 
 
 # ---------------------------------------------------------------------------
@@ -261,6 +264,7 @@ class AggressiveEngine:
         self.paused = False
         self.switch_log = deque(maxlen=60)
         self._stop = threading.Event()
+        self._lock = threading.Lock()   # protege _launch (miner huérfano)
         self._monitor = None
         self._restarts = 0
         self._last_shares_seen = -1
@@ -332,7 +336,10 @@ class AggressiveEngine:
         self._save_state()
 
     def _launch(self, target, reason: str, threads: int):
-        with threading.Lock():
+        # Lock de instancia (antes se creaba uno NUEVO en cada llamada:
+        # "with threading.Lock()" no protege nada — carrera real entre el
+        # monitor y stop()/switch → minero huérfano).
+        with self._lock:
             if self.miner is not None:
                 try:
                     self.miner.stop()
@@ -471,7 +478,16 @@ class AggressiveEngine:
 
     # ------------------------------------------------------------------
     def snapshot(self) -> dict:
-        lat = {t["id"]: probe_pool(t["url"]) for t in TARGETS}
+        # Sondas en PARALELO: antes eran secuenciales (hasta 3×3 s = 9 s)
+        # y bloqueaban el hilo de comandos de Telegram con cada /estado.
+        try:
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=len(TARGETS)) as ex:
+                futs = {ex.submit(probe_pool, t["url"]): t["id"]
+                        for t in TARGETS}
+                lat = {fid: f.result() for f, fid in futs.items()}
+        except Exception:
+            lat = {t["id"]: probe_pool(t["url"]) for t in TARGETS}
         return {
             "mode": self.MODE,
             "running": self.is_running(),

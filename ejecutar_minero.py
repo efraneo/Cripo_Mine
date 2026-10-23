@@ -117,9 +117,13 @@ def revisar_depositos():
         print(f"[dep] consulta fallida: {e}", flush=True)
         return
     if _DEPOSITOS[0] is None:
-        # primera pasada: semilla (sin avisar lo histórico)
+        # primera pasada: semilla (sin avisar lo histórico). OJO: si no hay
+        # archivo previo había un None aquí y ESTA RAMA CRASHEABA siempre
+        # (AttributeError), dejando las alertas de depósito muertas.
+        vistos = _cargar_vistos() or set()
         for d in hist:
-            _DEPOSITOS[0].add(str(d.get("id") or d.get("txId")))
+            vistos.add(str(d.get("id") or d.get("txId")))
+        _DEPOSITOS[0] = vistos
         _guardar_vistos(_DEPOSITOS[0])
         if hist:
             print(f"[dep] {len(hist)} depósitos previos conocidos", flush=True)

@@ -169,14 +169,23 @@ def informe(n, inicio, r, target, delta, restan):
 
 
 def arrancar_daemon():
+    # Guard anti doble daemon: si ya corre uno (dashboard/esta sesión),
+    # lanzar otro deja 2 xmrig compitiendo por CPU y por el API 4068.
+    import control
+    if control.daemon_alive():
+        _log(f"daemon ya vivo (PID {control.daemon_pid()}): no relanzo")
+        return control.daemon_pid()
     logf = open(os.path.join("data", "supervisora_daemon.log"), "a",
                 encoding="utf-8")
+    flags = 0
+    if os.name == "nt":
+        flags = (subprocess.DETACHED_PROCESS
+                 | subprocess.CREATE_NEW_PROCESS_GROUP)
     p = subprocess.Popen(
         [sys.executable, "run_miner.py"],
         stdout=logf, stderr=subprocess.STDOUT,
         cwd=os.getcwd(),
-        creationflags=subprocess.DETACHED_PROCESS
-        | subprocess.CREATE_NEW_PROCESS_GROUP)
+        creationflags=flags)
     _log(f"daemon run_miner PID {p.pid}")
     return p.pid
 

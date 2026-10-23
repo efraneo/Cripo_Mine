@@ -38,7 +38,12 @@ def _api(cfg, method: str, params: dict = None, timeout: int = 10):
     if not token:
         raise RuntimeError("Falta TELEGRAM_BOT_TOKEN en secrets")
     url = API.format(token=token, method=method)
-    r = requests.get(url, params=params or {}, timeout=timeout)
+    try:
+        r = requests.get(url, params=params or {}, timeout=timeout)
+    except Exception as e:
+        # SEGURIDAD: las excepciones de requests incluyen la URL completa
+        # (…/bot<TOKEN>/…) — sin sanear, el token se fuga a logs y dashboard.
+        raise RuntimeError(f"error de red ({type(e).__name__})") from None
     data = r.json() if r.headers.get("content-type", "").startswith(
         "application/json") else {}
     if not data.get("ok"):
@@ -94,7 +99,9 @@ def print_chat_ids(cfg):
 # Mensajes con formato
 # ---------------------------------------------------------------------------
 def msg_daemon_started(cfg, status: dict):
-    t = status.get("target") or {}
+    # status puede venir de get_status() (target anidado en "engine")
+    # o de engine.snapshot() (target en la raíz)
+    t = status.get("target") or (status.get("engine") or {}).get("target") or {}
     send(cfg, (
         "<b>DAEMON AGRESIVO INICIADO</b>\n"
         f"Objetivo: <b>{t.get('nombre', '—')}</b>\n"
@@ -195,11 +202,12 @@ class TelegramController(threading.Thread):
     def _handle(self, cmd: str):
         self.on_event(f"Comando Telegram: {cmd}", "info")
         if cmd == "/estado":
-            st = self.get_status()
+            st = self.get_status(include_earnings=True)
             t = (st.get("engine") or {}).get("target") or {}
             tot = st.get("totals") or {}
             pay = st.get("payout") or {}
             um = pay.get("unmineable") or {}
+            coin = pay.get("coin", "BTC")
             send(self.cfg, (
                 "<b>ESTADO DEL MINERO</b>\n"
                 f"Objetivo: <b>{t.get('nombre', '—')}</b>\n"
@@ -207,8 +215,10 @@ class TelegramController(threading.Thread):
                 f"Shares OK: <b>{tot.get('shares_ok', 0)}</b> · "
                 f"Rechazados: {tot.get('shares_rej', 0)}\n"
                 f"Uptime: {st.get('uptime_txt', '—')}\n"
-                f"unMineable: {um.get('balance', 0):.8f} BTC "
-                f"(pagable {um.get('balance_payable', 0):.8f})\n"
+                f"unMineable: {um.get('balance', 0):.6f} {coin} "
+                f"(pagable {um.get('balance_payable', 0):.6f}"
+                + (f", umbral {um.get('threshold', 0):g}"
+                   if um.get("threshold") else "") + ")\n"
                 f"Pausado: {'sí' if (st.get('engine') or {}).get('paused') else 'no'}"))
         elif cmd == "/pausar":
             control.write(paused_manual=True, updated_by="telegram")
@@ -226,18 +236,19 @@ class TelegramController(threading.Thread):
             um = pay.get("unmineable") or {}
             mo = pay.get("moneroocean") or {}
             deps = pay.get("binance_total_btc", 0.0)
+            coin = pay.get("coin", "BTC")
             lines = ["<b>GANANCIAS</b>"]
             if um:
                 lines.append(
-                    f"unMineable: <b>{um.get('balance', 0):.8f}</b> BTC "
-                    f"sin pagar (pagable {um.get('balance_payable', 0):.8f}"
-                    + (f", umbral pool {um.get('threshold', 0):.5f}"
+                    f"unMineable: <b>{um.get('balance', 0):.6f}</b> {coin} "
+                    f"sin pagar (pagable {um.get('balance_payable', 0):.6f}"
+                    + (f", umbral pool {um.get('threshold', 0):g}"
                        if um.get("threshold") else "") + ")")
             if mo:
                 lines.append(f"MoneroOcean: <b>{mo.get('due_xmr', 0):.6f}"
                              f"</b> XMR pendientes")
-            lines.append(f"Depósitos BTC vistos en Binance: "
-                         f"<b>{deps:.8f}</b> BTC")
+            lines.append(f"Depósitos {coin} vistos en Binance: "
+                         f"<b>{deps:.6f}</b> {coin}")
             send(self.cfg, "\n".join(lines), "money")
         elif cmd in ("/ayuda", "/start", "/help"):
             send(self.cfg, (

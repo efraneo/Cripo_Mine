@@ -56,6 +56,10 @@ def log(msg: str, level: str = "info"):
 # ---------------------------------------------------------------------------
 store = StateStore.get()
 cfg = load_secrets()
+payout = None                             # se asigna en main() (PayoutWatcher)
+
+# throttle de alertas de share (segundos entre aviso y aviso)
+_share_alert = {"ts": 0.0}
 
 
 def on_stats(stats: dict):
@@ -64,10 +68,46 @@ def on_stats(stats: dict):
                          stats.get("shares_ok", 0), stats.get("shares_rej", 0))
 
 
+def on_share(job, nonce, status):
+    """Registra el share en el store Y avisa a Telegram (con throttle).
+
+    Antes el daemon descartaba los shares (lambda: None): /estado, el
+    resumen diario y los contadores salían siempre en 0. Ahora cada
+    aceptado alimenta el histórico y dispara un aviso para que puedas
+    ver la ganancia acercándose al umbral de pago."""
+    store.append_share(job, nonce, status)
+    if status not in ("aceptado", "bloque"):
+        return
+    now = time.time()
+    try:
+        gap = float(cfg.get("SHARE_ALERT_MIN_SEC", 120) or 120)
+    except (TypeError, ValueError):
+        gap = 120.0
+    if now - _share_alert["ts"] < gap:
+        return
+    _share_alert["ts"] = now
+    try:
+        hr = format_hashrate((store.last() or {}).get("hashrate", 0) or 0)
+        tot = store.totals()
+        pay = payout.snapshot_light() if payout is not None else {}
+        um = pay.get("unmineable") or {}
+        coin = pay.get("coin", "USDT")
+        bal = float(um.get("balance", 0) or 0)
+        thr = float(um.get("threshold", 0) or 0)
+        pct = (bal / thr * 100.0) if thr else 0.0
+        tg.send(cfg, (
+            f"<b>SHARE {status.upper()}</b> · nº {tot.get('shares_ok', 0)} "
+            f"· hashrate {hr}\n"
+            f"Saldo en unMineable: <b>{bal:.6f} {coin}</b> "
+            f"({pct:.2f}% del umbral {thr:g} {coin})"), "ok")
+    except Exception:
+        pass
+
+
 engine = AggressiveEngine(
     cfg,
     on_event=lambda m, l="info": log(m, l),
-    on_share=lambda j, n, s: None,          # shares ya se cuentan vía stats
+    on_share=on_share,                     # shares → store + aviso Telegram
     on_stats=on_stats)
 
 
@@ -80,8 +120,9 @@ def get_status(include_earnings: bool = False) -> dict:
     """Snapshot agregado para /estado de Telegram y resumen diario."""
     tot = store.totals()
     eng = engine.snapshot()
-    pay = payout.snapshot_light() if include_earnings else \
-        {"unmineable": {"balance": 0, "paid": 0},
+    pay = payout.snapshot_light() if (include_earnings and payout) else \
+        {"coin": str(cfg.get("PAYOUT_COIN") or "BTC").upper(),
+         "unmineable": {"balance": 0, "paid": 0, "threshold": 0},
          "moneroocean": {"due_xmr": 0},
          "binance_total_btc": 0.0}
     hashrate = (store.last() or {}).get("hashrate", 0) or 0
@@ -97,13 +138,15 @@ def get_status(include_earnings: bool = False) -> dict:
 # ---------------------------------------------------------------------------
 def validate_environment() -> bool:
     """Sin direcciones no hay pipeline: avisa y aborta con instrucciones."""
-    has_btc = bool((cfg.get("BTC_PAYOUT_ADDRESS") or "").strip())
+    coin = str(cfg.get("PAYOUT_COIN") or "BTC").strip().upper() or "BTC"
+    pay_key = "USDT_PAYOUT_ADDRESS" if coin == "USDT" else "BTC_PAYOUT_ADDRESS"
+    has_pay = bool((cfg.get(pay_key) or "").strip())
     has_xmr = bool((cfg.get("WALLET_XMR") or "").strip())
-    if not (has_btc or has_xmr):
-        log("FALTAN DIRECCIONES: pon BTC_PAYOUT_ADDRESS (para cobrar en BTC "
+    if not (has_pay or has_xmr):
+        log(f"FALTAN DIRECCIONES: pon {pay_key} (para cobrar en {coin} "
             "vía unMineable) o WALLET_XMR (MoneroOcean/SupportXMR) en "
             ".streamlit/secrets.toml", "error")
-        tg.send(cfg, "<b>No puedo arrancar</b>: falta BTC_PAYOUT_ADDRESS o "
+        tg.send(cfg, f"<b>No puedo arrancar</b>: falta {pay_key} o "
                      "WALLET_XMR en secrets.", "error")
         return False
     if not tg.configured(cfg):
@@ -174,7 +217,15 @@ def main():
                 break
     except KeyboardInterrupt:
         stop_reason = "Ctrl+C"
-    shutdown(stop_reason)
+    except SystemExit:
+        # SIGTERM → sys.exit(0): sin este catch el finally es el único que
+        # garantiza parar xmrig (antes quedaba huérfano al 100 % CPU).
+        stop_reason = "señal de terminación (SIGTERM)"
+        raise
+    finally:
+        # finally garantiza que xmrig NUNCA quede huérfano (crash, SIGTERM,
+        # Ctrl+C o parada amable): engine.stop mata al subproceso.
+        shutdown(stop_reason)
     log(f"Daemon terminado ({stop_reason})", "warn")
 
 

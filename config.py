@@ -112,6 +112,9 @@ DEFAULTS = {
     "CPU_TEMP_MAX": 85.0,
     "DAILY_SUMMARY_HOUR": 20,
     "PAYOUT_ALERT_MIN_BTC": 0.0005,
+    # Avisos de ganancia en Telegram (daemon)
+    "SHARE_ALERT_MIN_SEC": 120,        # throttle aviso por share aceptado
+    "EARNINGS_REPORT_HOURS": 4,        # informe de saldo/ETA cada N h (0=off)
 }
 
 
@@ -166,7 +169,8 @@ def load_secrets() -> dict:
         cfg["AUTO_REFRESH_SECONDS"] = 5
     # v2: tipos de los nuevos secrets
     for _k in ("FAILOVER_MINUTES", "ROTATE_MINUTES", "CPU_TEMP_MAX",
-               "DAILY_SUMMARY_HOUR", "PAYOUT_ALERT_MIN_BTC"):
+               "DAILY_SUMMARY_HOUR", "PAYOUT_ALERT_MIN_BTC",
+               "SHARE_ALERT_MIN_SEC", "EARNINGS_REPORT_HOURS"):
         try:
             cfg[_k] = float(cfg[_k])
         except Exception:

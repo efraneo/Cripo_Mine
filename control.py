@@ -38,6 +38,61 @@ except Exception:
 
 
 # ---------------------------------------------------------------------------
+# Lock ENTRE PROCESOS: el threading.Lock solo protege dentro de un proceso,
+# pero control.json lo escriben Streamlit (botones), el daemon y la
+# supervisora a la vez → se pisaban updates (una pausa térmica podía borrarse).
+class _FileLock:
+    """Lock de archivo con timeout. En Windows usa msvcrt, en POSIX fcntl.
+    Si el lock no se consigue en `timeout`, se procede igual (mejor un write
+    tardío que bloquear el daemon)."""
+
+    def __init__(self, path: str, timeout: float = 3.0):
+        self.path = path
+        self.timeout = timeout
+        self._fd = None
+
+    def __enter__(self):
+        deadline = time.time() + self.timeout
+        try:
+            self._fd = os.open(self.path + ".lock",
+                               os.O_CREAT | os.O_RDWR, 0o666)
+        except OSError:
+            return self
+        while True:
+            try:
+                if os.name == "nt":
+                    import msvcrt
+                    msvcrt.locking(self._fd, msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(self._fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                return self
+            except OSError:
+                if time.time() >= deadline:
+                    return self        # sin lock: escribimos igual (best-effort)
+                time.sleep(0.05)
+
+    def __exit__(self, *exc):
+        if self._fd is not None:
+            try:
+                if os.name == "nt":
+                    import msvcrt
+                    os.lseek(self._fd, 0, os.SEEK_SET)
+                    msvcrt.locking(self._fd, msvcrt.LK_UNLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(self._fd, fcntl.LOCK_UN)
+            except OSError:
+                pass
+            try:
+                os.close(self._fd)
+            except OSError:
+                pass
+            self._fd = None
+        return False
+
+
+# ---------------------------------------------------------------------------
 def read() -> dict:
     """Lee el estado de control (nunca explota si falta o está corrupto)."""
     base = {
@@ -56,19 +111,21 @@ def read() -> dict:
 
 
 def write(**kwargs) -> dict:
-    """Fusiona cambios en control.json de forma atómica y thread-safe."""
+    """Fusiona cambios en control.json de forma atómica y thread-safe
+    (tanto entre hilos como ENTRE procesos: Streamlit + daemon + supervisora)."""
     with _LOCK:
-        state = read()
-        state.update(kwargs)
-        state["action_ts"] = time.time()
-        tmp = CONTROL_FILE + ".tmp"
-        try:
-            with open(tmp, "w", encoding="utf-8") as f:
-                json.dump(state, f, indent=2)
-            os.replace(tmp, CONTROL_FILE)
-        except Exception:
-            pass
-        return state
+        with _FileLock(CONTROL_FILE):
+            state = read()
+            state.update(kwargs)
+            state["action_ts"] = time.time()
+            tmp = CONTROL_FILE + ".tmp"
+            try:
+                with open(tmp, "w", encoding="utf-8") as f:
+                    json.dump(state, f, indent=2)
+                os.replace(tmp, CONTROL_FILE)
+            except Exception:
+                pass
+            return state
 
 
 # ---------------------------------------------------------------------------
@@ -146,10 +203,29 @@ def stop_daemon(timeout: float = 15.0) -> bool:
     try:
         if psutil is not None:
             p = psutil.Process(int(pid))
+            # Primero los hijos (xmrig): si solo matamos al daemon, el
+            # minero queda HUÉRFANO minando al 100 % CPU sin control.
+            try:
+                for hijo in p.children(recursive=True):
+                    try:
+                        hijo.terminate()
+                    except Exception:
+                        pass
+            except Exception:
+                pass
             p.terminate()
             try:
                 p.wait(timeout=6)
             except Exception:
+                # última pasada: kill forzoso de hijos y padre
+                try:
+                    for hijo in p.children(recursive=True):
+                        try:
+                            hijo.kill()
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
                 p.kill()
         else:
             os.kill(int(pid), 9)

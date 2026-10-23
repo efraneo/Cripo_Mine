@@ -30,7 +30,8 @@ XMRIG_CONFIG_FILE = os.path.join(DATA_DIR, "xmrig_config.json")
 
 
 def write_xmrig_config(pool_url: str, user: str, password: str,
-                       threads: int, path: str = XMRIG_CONFIG_FILE) -> str:
+                       threads: int, path: str = XMRIG_CONFIG_FILE,
+                       port: int = 4068) -> str:
     """Genera un config.json mínimo y válido para XMRig (docs: xmrig.com/docs/miner/config/pool)."""
     # Preserva la caché de calibración del fork MoneroOcean (algo-perf):
     # sin ella, CADA arranque re-mide ~13 algoritmos (~4-9 min) y durante
@@ -58,14 +59,18 @@ def write_xmrig_config(pool_url: str, user: str, password: str,
             "keepalive": True,
         }],
         "print-time": 5,
-        "http": {"enabled": True, "host": "127.0.0.1", "port": 4068,
+        "http": {"enabled": True, "host": "127.0.0.1", "port": int(port),
                  "access-token": None, "restricted": True},
     }
     if prev_perf:
         cfg["algo-perf"] = prev_perf
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
+    # Escritura atómica: dos arrancas simultáneas no dejan JSON truncado
+    # (xmrig abortaría con "Failed to read config").
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(cfg, f, indent=2)
+    os.replace(tmp, path)
     return path
 
 
@@ -112,6 +117,8 @@ class ExternalMiner:
         name = os.path.basename(self.binary_path).lower()
         cmd = [self.binary_path]
         if "xmrig" in name:
+            # Puerto 4068 fijo (lo usan supervisora/dashboard); la
+            # doble instancia se evita con el guard de daemon_alive.
             cfg = write_xmrig_config(self.pool_url, self.user, self.password,
                                      self.threads)
             # -t fija el nº real de hilos (max-threads-hint es % y no basta).
@@ -203,19 +210,24 @@ class ExternalMiner:
             self.hashrate = val * mult
         if self._re_acc.search(low):
             mm = self._re_shares.search(line)
-            ok, total = (int(mm.group(1)), int(mm.group(2))) if mm else \
-                (self.shares_ok + 1, None)
-            if total is not None:
-                self.shares_ok, self.shares_rej = ok, max(total - ok, 0)
+            if mm:
+                # XMRig imprime "accepted (aceptados/rechazados)" — verificado
+                # en el código fuente (Network::onResultAccepted). Antes se
+                # leía como (aceptados/total) y los rechazados salían 0.
+                self.shares_ok = int(mm.group(1))
+                self.shares_rej = int(mm.group(2))
             else:
-                self.shares_ok = ok
+                self.shares_ok += 1
             self.on_share("ext", "-", "aceptado")
             self.on_event(f"Share aceptado ({self.shares_ok}/"
                           f"{self.shares_ok + self.shares_rej})", "ok")
         elif self._re_rej.search(low):
             mm = self._re_shares.search(line)
             if mm:
-                self.shares_rej = max(int(mm.group(2)) - int(mm.group(1)), 0)
+                self.shares_ok = int(mm.group(1))
+                self.shares_rej = int(mm.group(2))
+            else:
+                self.shares_rej += 1
             self.on_share("ext", "-", "rechazado")
             self.on_event("Share rechazado por el pool", "warn")
         m = self._re_diff.search(line)
