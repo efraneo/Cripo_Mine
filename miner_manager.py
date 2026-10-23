@@ -9,6 +9,7 @@ Interfaz:  .start()  .stop()  .is_running()  .stats()
 Callbacks: on_event(msg, level), on_share(job, nonce, status), on_stats(dict)
 Descarga segura de XMRig: https://github.com/xmrig/xmrig/releases
 """
+import json
 import os
 import re
 import shutil
@@ -31,6 +32,15 @@ XMRIG_CONFIG_FILE = os.path.join(DATA_DIR, "xmrig_config.json")
 def write_xmrig_config(pool_url: str, user: str, password: str,
                        threads: int, path: str = XMRIG_CONFIG_FILE) -> str:
     """Genera un config.json mínimo y válido para XMRig (docs: xmrig.com/docs/miner/config/pool)."""
+    # Preserva la caché de calibración del fork MoneroOcean (algo-perf):
+    # sin ella, CADA arranque re-mide ~13 algoritmos (~4-9 min) y durante
+    # esa calibración ni siquiera ata el puerto HTTP de la API 4068.
+    prev_perf = None
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            prev_perf = json.load(f).get("algo-perf")
+    except Exception:
+        prev_perf = None
     cfg = {
         "autosave": True,
         # OJO: max-threads-hint es un PORCENTAJE (0-100) de hilos, no un
@@ -51,9 +61,10 @@ def write_xmrig_config(pool_url: str, user: str, password: str,
         "http": {"enabled": True, "host": "127.0.0.1", "port": 4068,
                  "access-token": None, "restricted": True},
     }
+    if prev_perf:
+        cfg["algo-perf"] = prev_perf
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
-        import json
         json.dump(cfg, f, indent=2)
     return path
 
@@ -103,7 +114,9 @@ class ExternalMiner:
         if "xmrig" in name:
             cfg = write_xmrig_config(self.pool_url, self.user, self.password,
                                      self.threads)
-            # -t fija el nº real de hilos (max-threads-hint es % y no basta)
+            # -t fija el nº real de hilos (max-threads-hint es % y no basta).
+            # El http lo da la sección "http" del config (así funcionó en la
+            # sesión de 1 h); --http-port en CLI rompía el bind en este fork.
             cmd += ["-c", cfg, "-t", str(self.threads)]
         else:
             # convención cpuminer-opt / minerd
