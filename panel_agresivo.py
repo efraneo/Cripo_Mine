@@ -216,6 +216,13 @@ def render(RT: dict, CFG: dict):
             (st.success if ok else st.error)(
                 "Enviado" if ok else "Falló el envío: revisa token/chat_id")
     else:
+        _tok = str(CFG.get("TELEGRAM_BOT_TOKEN") or "").strip()
+        _cid = str(CFG.get("TELEGRAM_CHAT_ID") or "").strip()
+        st.caption(
+            "🔍 Detectado en secrets → TELEGRAM_BOT_TOKEN: "
+            f"{'✓ presente' if _tok else '✗ FALTA'} · TELEGRAM_CHAT_ID: "
+            f"{'✓ presente' if _cid else '✗ FALTA'} (secciones [telegram] "
+            "o planas: se aceptan ambas)")
         st.info("Sin Telegram. Configura TELEGRAM_BOT_TOKEN y "
                 "TELEGRAM_CHAT_ID para que el minero te avise al instante "
                 "(failovers, depósitos en Binance, resumen diario) y para "

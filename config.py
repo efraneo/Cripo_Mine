@@ -111,6 +111,32 @@ DEFAULTS = {
 }
 
 
+def _aplanar(d: dict) -> dict:
+    """Normaliza secrets con secciones TOML. Si pegaste
+
+        [telegram]
+        TELEGRAM_BOT_TOKEN = "..."
+        (o bot_token / chat_id / token)
+
+    Streamlit lo entrega anidado y la app lo buscaba plano → "Sin Telegram"
+    aunque la clave esté. Aquí se aplana (la raíz gana) y se renombran los
+    alias habituales de la sección telegram."""
+    if not isinstance(d, dict):
+        return {}
+    alias_sec = {"telegram", "tg", "bot"}
+    alias = {"bot_token": "TELEGRAM_BOT_TOKEN", "token": "TELEGRAM_BOT_TOKEN",
+             "chat_id": "TELEGRAM_CHAT_ID", "chatid": "TELEGRAM_CHAT_ID"}
+    out = {k: v for k, v in d.items() if not isinstance(v, dict)}
+    for k, v in d.items():
+        if not isinstance(v, dict):
+            continue
+        es_tg = str(k).strip().lower() in alias_sec
+        for sk, sv in _aplanar(v).items():
+            clave = alias.get(str(sk).lower(), sk) if es_tg else sk
+            out.setdefault(clave, sv)
+    return out
+
+
 def load_secrets() -> dict:
     """Une los secrets de Streamlit con los valores por defecto, sin explotar
     si no existe secrets.toml (útil también fuera de Streamlit)."""
@@ -118,7 +144,7 @@ def load_secrets() -> dict:
     try:
         import streamlit as st
         try:
-            sec = dict(st.secrets)  # type: ignore[attr-defined]
+            sec = _aplanar(dict(st.secrets))  # type: ignore[attr-defined]
         except Exception:
             sec = {}
         for k, v in sec.items():
