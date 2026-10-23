@@ -37,17 +37,42 @@ V2 — INTERVENCIÓN AGRESIVA (motor multi-pool + Telegram + pagos):
     PAYOUT_ALERT_MIN_BTC   → Balance que dispara aviso de payout (0.0005)
 """
 import os
+import tempfile
 
 # ---------------------------------------------------------------------------
 # Directorios base
+# IMPORTANTE (Streamlit Community Cloud): monta el repo en /mount/src con
+# sistema de archivos DE SOLO LECTURA. Si no se puede crear/escribir data/,
+# logs/ o bin/ junto al código, se hace fallback automático a /tmp
+# (el único lugar escribible en la nube de Streamlit).
 # ---------------------------------------------------------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(BASE_DIR, "data")
-LOG_DIR = os.path.join(BASE_DIR, "logs")
-BIN_DIR = os.path.join(BASE_DIR, "bin")
-os.makedirs(DATA_DIR, exist_ok=True)
-os.makedirs(LOG_DIR, exist_ok=True)
-os.makedirs(BIN_DIR, exist_ok=True)
+
+
+def _ensure_dir(path: str) -> str:
+    """Crea `path` y verifica escritura real; si el FS es de solo lectura
+    devuelve una ruta equivalente y escribible bajo /tmp."""
+    try:
+        os.makedirs(path, exist_ok=True)
+        probe = os.path.join(path, ".write_test")
+        with open(probe, "w", encoding="utf-8") as f:
+            f.write("ok")
+        os.remove(probe)
+        return path
+    except Exception:
+        pass
+    alt = os.path.join(tempfile.gettempdir(), "btc_miner_studio",
+                       os.path.basename(path.rstrip("/\\")) or "data")
+    try:
+        os.makedirs(alt, exist_ok=True)
+    except Exception:
+        alt = tempfile.gettempdir()
+    return alt
+
+
+DATA_DIR = _ensure_dir(os.path.join(BASE_DIR, "data"))
+LOG_DIR = _ensure_dir(os.path.join(BASE_DIR, "logs"))
+BIN_DIR = _ensure_dir(os.path.join(BASE_DIR, "bin"))
 # El daemon (run_miner.py) escribe sus métricas en otro archivo para no
 # pisar las del modo python del dashboard:
 METRICS_FILE = os.environ.get(
