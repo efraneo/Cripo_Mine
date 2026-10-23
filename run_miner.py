@@ -94,12 +94,15 @@ def on_share(job, nonce, status):
         coin = pay.get("coin", "USDT")
         bal = float(um.get("balance", 0) or 0)
         thr = float(um.get("threshold", 0) or 0)
+        acred = float(pay.get("binance_acred", 0) or 0)
+        total = bal + acred
         pct = (bal / thr * 100.0) if thr else 0.0
         tg.send(cfg, (
             f"<b>SHARE {status.upper()}</b> · nº {tot.get('shares_ok', 0)} "
             f"· hashrate {hr}\n"
-            f"Saldo en unMineable: <b>{bal:.6f} {coin}</b> "
-            f"({pct:.2f}% del umbral {thr:g} {coin})"), "ok")
+            f"🏦 Pool: <b>{bal:.6f} {coin}</b> ({pct:.2f}% de {thr:g}) · "
+            f"✅ Binance: {acred:.6f}\n"
+            f"💰 <b>TOTAL ADQUIRIDO: {total:.6f} {coin}</b>"), "ok")
     except Exception:
         pass
 

@@ -194,6 +194,17 @@ class PayoutWatcher(threading.Thread):
             self._state["binance_failing"] = False
             self.on_alert("Alertas de Binance restauradas: consultas OK",
                           "ok")
+        # Total YA acreditado en tu Spot (histórico visible, no solo los
+        # que vio este daemon): con esto cada aviso muestra el total
+        # adquirido = saldo en pool + recibido en Binance.
+        acred = 0.0
+        for d in deps:
+            try:
+                if int(d.get("status", -1)) == 1:
+                    acred += float(d.get("amount", 0) or 0)
+            except (TypeError, ValueError):
+                continue
+        snap["binance_acred"] = acred
         known = set(self._state.get("known_txids", []))
         nuevos = []
         for d in deps:
@@ -277,19 +288,23 @@ class PayoutWatcher(threading.Thread):
 
         # --- 4) Informe periódico de GANANCIAS (aviso "cuando gane algo") --
         if um:
-            self._earnings_report(um, payable, umbral, coin, time.time())
+            self._earnings_report(um, payable, umbral, coin, time.time(),
+                                  acred=snap.get("binance_acred", 0.0))
 
         self.last_snapshot = snap
         return snap
 
     # ------------------------------------------------------------------
     def _earnings_report(self, um: dict, payable: float, umbral: float,
-                         coin: str, now: float):
+                         coin: str, now: float, acred: float = 0.0):
         """Aviso periódico a Telegram con lo ganado, ritmo y ETA al pago.
 
-        Cadencia: EARNINGS_REPORT_HOURS (secrets, default 4 h; 0 = off).
-        El primer tick solo fija la línea base (sin spamear). Si no ha
-        crecido el balance desde el último informe, se omite."""
+        Muestra el DESGLOSE que pidió el dueño (23/10): cuánto llevo en el
+        pool (sin pagar) + cuánto ya está acreditado en Binance (Spot) +
+        el TOTAL adquirido desde el inicio. Cadencia: EARNINGS_REPORT_HOURS
+        (secrets, default 4 h; 0 = off). El primer tick solo fija la línea
+        base (sin spamear). Si no ha crecido el balance ni hay novedad,
+        se omite."""
         try:
             rep_h = float(self.cfg.get("EARNINGS_REPORT_HOURS", 4) or 0)
         except (TypeError, ValueError):
@@ -323,13 +338,17 @@ class PayoutWatcher(threading.Thread):
             eta_txt = "sin datos suficientes aún"
         pct = (payable / umbral * 100.0) if umbral else 0.0
         prec = 6 if coin == "USDT" else 8
+        total = payable + float(acred or 0.0)
         self.on_alert(
             f"<b>GANANCIA ACUMULADA</b>\n"
-            f"Saldo pool: <b>{payable:.{prec}f} {coin}</b> "
-            f"({pct:.2f}% de {umbral:g} {coin})\n"
-            f"Últimas {horas:.1f} h: +{max(delta, 0):.{prec}f} {coin} "
+            f"🏦 En el pool (sin pagar): <b>{payable:.{prec}f} {coin}</b> "
+            f"({pct:.2f}% de {umbral:g})\n"
+            f"✅ Ya en tu Binance Spot: <b>{float(acred or 0):.{prec}f} "
+            f"{coin}</b>\n"
+            f"💰 <b>TOTAL ADQUIRIDO: {total:.{prec}f} {coin}</b>\n"
+            f"📈 Últimas {horas:.1f} h: +{max(delta, 0):.{prec}f} {coin} "
             f"· ritmo {ritmo:.6f} {coin}/h\n"
-            f"ETA al pago en tu Spot de Binance: <b>{eta_txt}</b>",
+            f"⏱ ETA al siguiente pago: <b>{eta_txt}</b>",
             "money")
 
     # ------------------------------------------------------------------
@@ -337,15 +356,19 @@ class PayoutWatcher(threading.Thread):
         """Versión ligera para /estado de Telegram (sin llamadas de red)."""
         um = self.last_snapshot.get("unmineable") or {}
         mo = self.last_snapshot.get("moneroocean") or {}
+        acred = float(self.last_snapshot.get("binance_acred", 0) or 0)
+        bal = float(um.get("balance", 0) or 0)
         return {
             "coin": str(self.cfg.get("PAYOUT_COIN") or "BTC").upper(),
             "unmineable": {
-                "balance": float(um.get("balance", 0) or 0),
+                "balance": bal,
                 "balance_payable": float(um.get("balance_payable", 0) or 0),
                 "threshold": float(um.get("payment_threshold", 0) or 0),
             },
             "moneroocean": {"due_xmr": float(mo.get("due_xmr", 0) or 0)},
             "binance_total_btc": self._state.get("deposit_total_btc", 0.0),
+            "binance_acred": acred,          # ya acreditado en Spot
+            "total_adquirido": bal + acred,  # pool + Binance
         }
 
     # ------------------------------------------------------------------

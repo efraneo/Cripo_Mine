@@ -167,6 +167,8 @@ class Watchdog(threading.Thread):
             pay = st.get("payout") or {}
             um = (pay.get("unmineable") or {})
             coin = pay.get("coin", "BTC")
+            acred = float(pay.get("binance_acred", 0) or 0)
+            total = float(pay.get("total_adquirido", 0) or 0)
             t = (eng.get("target") or {}).get("nombre", "—")
             self.send("\n".join([
                 "<b>RESUMEN DIARIO</b>",
@@ -174,8 +176,8 @@ class Watchdog(threading.Thread):
                 f"Shares OK hoy (histórico): {tot.get('shares_ok', 0)}",
                 f"Hashrate: {st.get('hashrate_txt', '—')}",
                 f"Uptime: {st.get('uptime_txt', '—')}",
-                f"Balance unMineable: {um.get('balance', 0):.6f} {coin} "
+                f"🏦 En el pool: {um.get('balance', 0):.6f} {coin} "
                 f"(umbral {um.get('threshold', 0):g})",
-                f"Depósitos {coin} detectados: "
-                f"{pay.get('binance_total_btc', 0):.6f} {coin}",
+                f"✅ Ya en tu Binance Spot: {acred:.6f} {coin}",
+                f"💰 <b>TOTAL ADQUIRIDO: {total:.6f} {coin}</b>",
             ]), "info")

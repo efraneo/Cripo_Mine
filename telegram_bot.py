@@ -208,6 +208,8 @@ class TelegramController(threading.Thread):
             pay = st.get("payout") or {}
             um = pay.get("unmineable") or {}
             coin = pay.get("coin", "BTC")
+            acred = float(pay.get("binance_acred", 0) or 0)
+            total = float(pay.get("total_adquirido", 0) or 0)
             send(self.cfg, (
                 "<b>ESTADO DEL MINERO</b>\n"
                 f"Objetivo: <b>{t.get('nombre', '—')}</b>\n"
@@ -215,10 +217,12 @@ class TelegramController(threading.Thread):
                 f"Shares OK: <b>{tot.get('shares_ok', 0)}</b> · "
                 f"Rechazados: {tot.get('shares_rej', 0)}\n"
                 f"Uptime: {st.get('uptime_txt', '—')}\n"
-                f"unMineable: {um.get('balance', 0):.6f} {coin} "
+                f"🏦 Pool (sin pagar): {um.get('balance', 0):.6f} {coin} "
                 f"(pagable {um.get('balance_payable', 0):.6f}"
                 + (f", umbral {um.get('threshold', 0):g}"
                    if um.get("threshold") else "") + ")\n"
+                f"✅ Ya en tu Binance Spot: {acred:.6f} {coin}\n"
+                f"💰 <b>TOTAL ADQUIRIDO: {total:.6f} {coin}</b>\n"
                 f"Pausado: {'sí' if (st.get('engine') or {}).get('paused') else 'no'}"))
         elif cmd == "/pausar":
             control.write(paused_manual=True, updated_by="telegram")
@@ -237,17 +241,21 @@ class TelegramController(threading.Thread):
             mo = pay.get("moneroocean") or {}
             deps = pay.get("binance_total_btc", 0.0)
             coin = pay.get("coin", "BTC")
+            acred = float(pay.get("binance_acred", 0) or 0)
+            total = float(pay.get("total_adquirido", 0) or 0)
             lines = ["<b>GANANCIAS</b>"]
             if um:
                 lines.append(
-                    f"unMineable: <b>{um.get('balance', 0):.6f}</b> {coin} "
+                    f"🏦 En el pool: <b>{um.get('balance', 0):.6f}</b> {coin} "
                     f"sin pagar (pagable {um.get('balance_payable', 0):.6f}"
                     + (f", umbral pool {um.get('threshold', 0):g}"
                        if um.get("threshold") else "") + ")")
+            lines.append(f"✅ Ya en tu Binance Spot: <b>{acred:.6f}</b> {coin}")
+            lines.append(f"💰 <b>TOTAL ADQUIRIDO: {total:.6f} {coin}</b>")
             if mo:
                 lines.append(f"MoneroOcean: <b>{mo.get('due_xmr', 0):.6f}"
                              f"</b> XMR pendientes")
-            lines.append(f"Depósitos {coin} vistos en Binance: "
+            lines.append(f"Depósitos {coin} rastreados por el daemon: "
                          f"<b>{deps:.6f}</b> {coin}")
             send(self.cfg, "\n".join(lines), "money")
         elif cmd in ("/ayuda", "/start", "/help"):
