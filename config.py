@@ -122,8 +122,7 @@ def load_secrets() -> dict:
         except Exception:
             sec = {}
         for k, v in sec.items():
-            if k in DEFAULTS:
-                cfg[k] = v
+            cfg[k] = v
     except Exception:
         pass
     # Tipos numéricos seguros

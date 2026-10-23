@@ -6,6 +6,7 @@
 
 # Estado/datos locales del minero
 data/
+bin/
 __pycache__/
 *.pyc
 *.log
