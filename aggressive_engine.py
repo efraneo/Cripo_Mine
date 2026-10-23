@@ -58,11 +58,25 @@ STATE_FILE = os.path.join(BASE_DIR, "data", "engine_state.json")
 # Catálogo de objetivos agresivos
 # ---------------------------------------------------------------------------
 def _user_unmineable(cfg, worker):
-    addr = (cfg.get("BTC_PAYOUT_ADDRESS") or "").strip()
-    if not addr:
-        raise ValueError("Falta BTC_PAYOUT_ADDRESS (necesaria para que "
-                         "unMineable pague en BTC a tu Binance)")
-    return f"BTC:{addr}.{(worker or 'cpu01').strip() or 'cpu01'}"
+    """Formato de usuario unMineable: COIN:direccion.worker.
+
+    PAYOUT_COIN=USDT paga en tetherUS (spot Binance vía red TRC20, umbral
+    1.5 USDT) en vez de BTC (umbral ~0.00075 BTC ≈ 70+ USD). La red se
+    infiere de la propia dirección: T… = TRC20 para USDT.
+    """
+    coin = str(cfg.get("PAYOUT_COIN") or "BTC").strip().upper() or "BTC"
+    if coin == "USDT":
+        addr = (cfg.get("USDT_PAYOUT_ADDRESS") or "").strip()
+        if not addr:
+            raise ValueError("Falta USDT_PAYOUT_ADDRESS (dirección de "
+                             "depósito USDT TRC20 de tu Binance)")
+    else:
+        coin = "BTC"
+        addr = (cfg.get("BTC_PAYOUT_ADDRESS") or "").strip()
+        if not addr:
+            raise ValueError("Falta BTC_PAYOUT_ADDRESS (necesaria para que "
+                             "unMineable pague en BTC a tu Binance)")
+    return f"{coin}:{addr}.{(worker or 'cpu01').strip() or 'cpu01'}"
 
 
 def _user_wallet(cfg, worker):
@@ -76,16 +90,15 @@ def _user_wallet(cfg, worker):
 TARGETS = [
     {
         "id": "unmineable",
-        "nombre": "unMineable (paga en BTC directo a Binance)",
+        "nombre": "unMineable (paga BTC o USDT directo a Binance)",
         "url": "rx.unmineable.com:3333",
         "algo": "rx/0",
-        "pago": "BTC",
+        "pago": "BTC/USDT",
         "user_fn": _user_unmineable,
-        "nota": "Endpoint RandomX oficial (soporte unMineable 2026: "
-                "rx.unmineable.com:3333; alternativa SSL stratum+ssl://rx." 
-                "unmineable.com:443). Formato user: BTC:<dirección>.<worker> "
-                "o alias de la sección Addresses. Umbral de pago real lo da "
-                "la API (~0.00075 BTC) y puedes ajustarlo en unmineable.com.",
+        "nota": "Endpoint RandomX oficial. PAYOUT_COIN elige la moneda: "
+                "BTC (umbral ~0.00075 BTC) o USDT (red TRC20, umbral "
+                "1.5 USDT — llega directo al Spot de Binance como "
+                "tetherUS). Formato user: COIN:<dirección>.<worker>.",
     },
     {
         "id": "moneroocean",

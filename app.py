@@ -51,6 +51,21 @@ def get_runtime() -> dict:
             store.append_event(
                 f"No pude pedir la dirección de depósito a Binance: {_e}",
                 "warn")
+    # Igual para USDT (spot tetherUS, red TRC20) si PAYOUT_COIN=USDT
+    if str(cfg.get("PAYOUT_COIN") or "BTC").strip().upper() == "USDT" \
+            and not str(cfg.get("USDT_PAYOUT_ADDRESS") or "").strip() \
+            and str(cfg.get("BINANCE_API_KEY") or "").strip():
+        try:
+            _d = binance.deposit_address("USDT", "TRX") or {}
+            _a = str(_d.get("address") or "")
+            if _a and "SIMULAD" not in _a:
+                cfg["USDT_PAYOUT_ADDRESS"] = _a
+                store.append_event(
+                    "USDT_PAYOUT_ADDRESS (TRC20) obtenida automáticamente "
+                    f"de Binance ({_a[:12]}…)", "ok")
+        except Exception as _e:
+            store.append_event(
+                f"No pude pedir la dirección USDT a Binance: {_e}", "warn")
     store.append_event("App iniciada", "info")
     return {"cfg": cfg, "store": store, "binance": binance,
             "miner": None, "deposit_address": "", "payout_override": ""}

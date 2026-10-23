@@ -62,7 +62,9 @@ def _daemon_df(n: int = 400) -> pd.DataFrame:
 
 def _target_badges(cfg):
     """Qué objetivos están listos según los secrets del usuario."""
-    has_btc = bool((cfg.get("BTC_PAYOUT_ADDRESS") or "").strip())
+    coin = str(cfg.get("PAYOUT_COIN") or "BTC").strip().upper()
+    _addr_key = "USDT_PAYOUT_ADDRESS" if coin == "USDT" else "BTC_PAYOUT_ADDRESS"
+    has_btc = bool((cfg.get(_addr_key) or "").strip())
     has_xmr = bool((cfg.get("WALLET_XMR") or "").strip())
     rows = []
     for t in TARGETS:
@@ -72,7 +74,7 @@ def _target_badges(cfg):
             "objetivo": t["nombre"],
             "pool": t["url"],
             "algo": t["algo"],
-            "pago": t["pago"],
+            "pago": (coin if t["id"] == "unmineable" else t["pago"]),
             "estado": "LISTO" if listo else "falta dirección en secrets",
         })
     return pd.DataFrame(rows), has_btc, has_xmr
@@ -200,8 +202,9 @@ def render(RT: dict, CFG: dict):
                    if lat_por_url.get(url_de[i]) else "sin respuesta"))
     st.dataframe(df_t, width="stretch", hide_index=True)
     if not (has_btc or has_xmr):
-        st.warning("Configura BTC_PAYOUT_ADDRESS y/o WALLET_XMR en "
-                   ".streamlit/secrets.toml para que haya objetivos "
+        st.warning("Configura la dirección de pago (BTC_PAYOUT_ADDRESS, o "
+                   "USDT_PAYOUT_ADDRESS si PAYOUT_COIN=USDT) y/o WALLET_XMR "
+                   "en .streamlit/secrets.toml para que haya objetivos "
                    "disponibles.")
 
     # ------------------------------------------------------------------
@@ -241,21 +244,24 @@ def render(RT: dict, CFG: dict):
 
     # ------------------------------------------------------------------
     st.subheader("4 · Pipeline de pagos → Binance")
-    st.caption("Ruta: tu CPU mina RandomX → unMineable convierte a BTC → "
-               "paga a tu dirección de depósito de Binance → este vigilante "
-               "te avisa por Telegram en el momento.")
+    _coin = str(CFG.get("PAYOUT_COIN") or "BTC").strip().upper()
+    _pdir = str(CFG.get("USDT_PAYOUT_ADDRESS" if _coin == "USDT"
+                        else "BTC_PAYOUT_ADDRESS") or "").strip()
+    st.caption(f"Ruta: tu CPU mina RandomX → unMineable convierte a "
+               f"{_coin} → paga a tu dirección de depósito de Binance → "
+               "este vigilante te avisa por Telegram en el momento.")
     if st.button("Consultar balances y depósitos ahora"):
         with st.spinner("Consultando pools y Binance…"):
             price, psrc = get_price("binance")
-            um = fetch_unmineable((CFG.get("BTC_PAYOUT_ADDRESS") or "").strip())
+            um = fetch_unmineable(_pdir, coin=_coin)
             mo = fetch_moneroocean((CFG.get("WALLET_XMR") or "").strip())
             deps = fetch_binance_deposits(RT["binance"], 10)
         k1, k2, k3 = st.columns(3)
         k1.metric("unMineable (sin pagar)",
                   format_btc(um["balance"]) if um else "—",
-                  (f"pagable {um['balance_payable']:.8f} BTC · umbral pool "
+                  (f"pagable {um['balance_payable']:.8f} · umbral pool "
                    f"{um['payment_threshold']:.5f}") if um else
-                  "requiere BTC_PAYOUT_ADDRESS")
+                  "requiere la dirección de pago en secrets")
         k2.metric("MoneroOcean (pendiente)",
                   f"{mo['due_xmr']:.4f} XMR" if mo else "—",
                   f"pagado {mo['paid_xmr']:.4f} XMR" if mo else

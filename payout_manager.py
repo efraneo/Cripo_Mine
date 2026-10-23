@@ -29,22 +29,24 @@ from pool_stats import get_price
 PAYOUT_STATE_FILE = os.path.join(BASE_DIR, "data", "payout_state.json")
 UA = {"User-Agent": "btc-miner-studio/2.0"}
 MO_API = "https://api.moneroocean.stream/miner/{addr}/stats"
-UM_API = "https://api.unmineable.com/v4/address/{addr}?coin=BTC"
+UM_API = "https://api.unmineable.com/v4/address/{addr}?coin={coin}"
 
 
 # ---------------------------------------------------------------------------
 # Lecturas puntuales (las usa el watcher Y el dashboard)
 # ---------------------------------------------------------------------------
-def fetch_unmineable(btc_address: str):
+def fetch_unmineable(btc_address: str, coin: str = "BTC"):
     """Estado real de la dirección en unMineable (API v4, verificada 2026).
     Devuelve {balance, balance_payable, payment_threshold, mining_fee, auto}
-    o None. El umbral de pago lo decide el pool (payment_threshold)."""
+    o None. El umbral de pago lo decide el pool (payment_threshold).
+    `coin` = BTC | USDT (la misma API sirve para las dos monedas de pago)."""
     if not btc_address:
         return None
     try:
         import requests
-        r = requests.get(UM_API.format(addr=btc_address), headers=UA,
-                         timeout=10)
+        r = requests.get(UM_API.format(addr=btc_address,
+                                       coin=(coin or "BTC").upper()),
+                         headers=UA, timeout=10)
         if r.status_code != 200:
             return None
         d = (r.json() or {}).get("data") or {}
@@ -99,12 +101,13 @@ def fetch_moneroocean(xmr_wallet: str):
         return None
 
 
-def fetch_binance_deposits(binance, limit: int = 20) -> list:
-    """Lista de depósitos BTC (o [] si no hay claves/servicio/simulado)."""
+def fetch_binance_deposits(binance, limit: int = 20,
+                           coin: str = "BTC") -> list:
+    """Lista de depósitos (BTC o USDT) o [] si no hay claves/servicio."""
     if binance is None:
         return []
     try:
-        hist = binance.deposit_history("BTC", limit)
+        hist = binance.deposit_history((coin or "BTC").upper(), limit)
         # Filtra simulados (modo sin claves) para no falsas alertas
         return [d for d in hist if not d.get("simulado")]
     except Exception:
@@ -153,14 +156,17 @@ class PayoutWatcher(threading.Thread):
     def tick(self) -> dict:
         """Una pasada de vigilancia; devuelve el snapshot actual."""
         cfg = self.cfg
+        coin = str(cfg.get("PAYOUT_COIN") or "BTC").strip().upper() or "BTC"
+        _addr_key = "USDT_PAYOUT_ADDRESS" if coin == "USDT" \
+            else "BTC_PAYOUT_ADDRESS"
         price, _ = get_price("binance")
-        snap = {"ts": time.time(), "price_usd": price,
+        snap = {"ts": time.time(), "price_usd": price, "coin": coin,
                 "unmineable": None, "moneroocean": None,
                 "binance_nuevos": [], "binance_total_btc":
                     self._state.get("deposit_total_btc", 0.0)}
 
         # --- 1) Depósitos nuevos en Binance -------------------------------
-        deps = fetch_binance_deposits(self.binance, 20)
+        deps = fetch_binance_deposits(self.binance, 20, coin=coin)
         known = set(self._state.get("known_txids", []))
         nuevos = []
         for d in deps:
@@ -180,7 +186,7 @@ class PayoutWatcher(threading.Thread):
             # Solo alertamos los acreditados (status 1); pendientes se ven
             if rec["status"] == 1 and amount > 0:
                 self.on_alert(
-                    f"DEPÓSITO RECIBIDO EN BINANCE: {amount:.8f} BTC"
+                    f"DEPÓSITO RECIBIDO EN BINANCE: {amount:.8f} {coin}"
                     + (f" (≈ USD {rec['usd']:,.2f})" if rec["usd"] else ""),
                     "money")
                 self._state["deposit_total_btc"] = \
@@ -191,7 +197,7 @@ class PayoutWatcher(threading.Thread):
             self._save()
 
         # --- 2) unMineable: balance y umbral (el umbral real lo da la API) --
-        um = fetch_unmineable((cfg.get("BTC_PAYOUT_ADDRESS") or "").strip())
+        um = fetch_unmineable((cfg.get(_addr_key) or "").strip(), coin=coin)
         snap["unmineable"] = um
         if um:
             payable = float(um.get("balance_payable", 0) or 0)
@@ -199,15 +205,17 @@ class PayoutWatcher(threading.Thread):
                 umbral_cfg = float(cfg.get("PAYOUT_ALERT_MIN_BTC", 0) or 0)
             except (TypeError, ValueError):
                 umbral_cfg = 0.0
-            # umbral del pool si existe; si no, el configurado; si no, 0.00075
+            # umbral por defecto según la moneda de pago elegida
+            umbral_def = 1.5 if coin == "USDT" else 0.00075
+            # umbral del pool si existe; si no, el configurado; si no, default
             umbral = float(um.get("payment_threshold") or 0) \
-                or umbral_cfg or 0.00075
+                or umbral_cfg or umbral_def
             snap["umbral_unmineable"] = umbral
             if payable >= umbral and not self._state.get("accum_alerted"):
                 self.on_alert(
                     f"PAYOUT EN CAMINO (unMineable): pagable {payable:.8f} "
-                    f"BTC ≥ umbral del pool {umbral:.5f}. El pago llegará a "
-                    f"tu dirección de Binance.", "money")
+                    f"{coin} ≥ umbral del pool {umbral:.4f}. El pago llegará "
+                    f"tu Spot de Binance como {coin}.", "money")
                 self._state["accum_alerted"] = True
                 self._save()
             elif payable < umbral * 0.5 and self._state.get("accum_alerted"):

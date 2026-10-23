@@ -259,12 +259,19 @@ def main():
 
     # ---------------- CIERRE: parada limpia del daemon ----------------
     _log("hora cumplida -> stop limpio del daemon")
+    ult = dict(r)   # respaldo: si la API ya murió, usamos el último muestreo
     try:
         control.write(action="stop", updated_by="supervisora_1h")
     except Exception as e:
         _log(f"control.write falló: {e}")
     time.sleep(20)
     r = api_xmrig() or metricas_respaldo()
+    # Bugfix 22/10: tras el stop, XMRig ya no responde y el respaldo leía
+    # shares=0; nunca reportamos menos de lo ya muestreado en vivo.
+    if int(r["shares"]) < int(ult.get("shares", 0)):
+        r["shares"] = ult["shares"]
+    if not r.get("hr60"):
+        r["hr60"] = ult.get("hr60") or ult.get("hr10") or 0
     rk = ranking()
     mejor = (f"{NOMBRE.get(rk[0][1], rk[0][1])} ({rk[0][0]:.2f} sh/min)"
              if rk and rk[0][0] > 0 else "sin datos suficientes")

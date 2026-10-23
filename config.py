@@ -85,6 +85,10 @@ DEFAULTS = {
     "BINANCE_API_KEY": "",
     "BINANCE_API_SECRET": "",
     "BTC_PAYOUT_ADDRESS": "",
+    # Pago en unMineable: "BTC" (default) o "USDT" (spot tetherUS en Binance,
+    # red TRC20 — umbral de pago 1.5 USDT vs ~0.00075 BTC en BTC).
+    "PAYOUT_COIN": "BTC",
+    "USDT_PAYOUT_ADDRESS": "",
     "POOL_URL": "stratum+tcp://public-pool.io:21496",
     "POOL_USER": "",
     "POOL_PASSWORD": "x",
@@ -312,6 +316,12 @@ SECRETS_HELP = [
                            "solo en secrets.toml, nunca en el código."),
     ("BTC_PAYOUT_ADDRESS", "Dirección Bitcoin donde recibes el minado. Recomendado: la "
                            "dirección de depósito BTC de tu Binance (pestaña Binance)."),
+    ("PAYOUT_COIN", "Moneda de pago en unMineable: BTC o USDT. Con USDT el "
+                    "depósito cae directo en tu Spot de Binance como "
+                    "tetherUS (red TRC20, umbral 1.5 USDT)."),
+    ("USDT_PAYOUT_ADDRESS", "Dirección USDT de tu Binance (red TRC20, empieza "
+                            "por T). Solo necesaria si PAYOUT_COIN=USDT; si "
+                            "falta y hay claves Binance, la app la pide sola."),
     ("POOL_URL", "URL stratum del pool. Ej: stratum+tcp://public-pool.io:21496"),
     ("POOL_USER", "Usuario del pool. Si lo dejas vacío se usa BTC_PAYOUT_ADDRESS."),
     ("POOL_PASSWORD", "Contraseña del pool. En pools públicos casi siempre es 'x'."),

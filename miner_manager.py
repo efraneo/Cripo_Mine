@@ -33,8 +33,11 @@ def write_xmrig_config(pool_url: str, user: str, password: str,
     """Genera un config.json mínimo y válido para XMRig (docs: xmrig.com/docs/miner/config/pool)."""
     cfg = {
         "autosave": True,
+        # OJO: max-threads-hint es un PORCENTAJE (0-100) de hilos, no un
+        # conteo — poner 2 limitaba el minero al 2 % de la CPU (¡1 hilo!).
+        # El conteo exacto se pasa con -t en _build_command.
         "cpu": {"enabled": True, "hw-aes": None, "priority": None,
-                "max-threads-hint": max(1, int(threads)), "memory-pool": False},
+                "max-threads-hint": 100, "memory-pool": False},
         "pools": [{
             "url": pool_url,
             "user": user,
@@ -100,7 +103,8 @@ class ExternalMiner:
         if "xmrig" in name:
             cfg = write_xmrig_config(self.pool_url, self.user, self.password,
                                      self.threads)
-            cmd += ["-c", cfg]
+            # -t fija el nº real de hilos (max-threads-hint es % y no basta)
+            cmd += ["-c", cfg, "-t", str(self.threads)]
         else:
             # convención cpuminer-opt / minerd
             url = self.pool_url.replace("stratum+tcp://", "").replace(

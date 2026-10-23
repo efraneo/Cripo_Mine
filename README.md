@@ -27,7 +27,7 @@ automático:
 
 | # | Objetivo | Pool | Algoritmo | Pago |
 |---|----------|------|-----------|------|
-| 1 | unMineable | `rx.unmineable.com:3333` (alt SSL `:443`) | rx/0 | **BTC directo a tu dirección de Binance** |
+| 1 | unMineable | `rx.unmineable.com:3333` (alt SSL `:443`) | rx/0 | **`PAYOUT_COIN` = BTC o USDT (tetherUS, red TRC20, umbral 1.5 USDT) directo a tu dirección de Binance** |
 | 2 | MoneroOcean | `gulf.moneroocean.stream:10128` | auto (13+ algos, fork XMRig-MO) | XMR a tu wallet |
 | 3 | SupportXMR | `pool.supportxmr.com:3333` | rx/0 | XMR (respaldo veterano) |
 
@@ -39,8 +39,8 @@ automático:
   o pool sin respuesta → cambia de objetivo y registra el motivo.
 - **Telegram** (`telegram_bot.py`): alertas de arranque/failover/depósitos
   y CONTROL REMOTO: `/estado` `/pausar` `/reanudar` `/cambiar` `/ganancias`.
-- **Vigilante de pagos** (`payout_manager.py`): detecta depósitos BTC en tu
-  Binance vía API y avisa al instante con su valor en USD; monitorea balance
+- **Vigilante de pagos** (`payout_manager.py`): detecta depósitos en tu
+  Binance vía API (BTC o USDT) y avisa al instante con su valor en USD; monitorea balance
   en unMineable y MoneroOcean y avisa "payout en camino" al cruzar el umbral.
 - **Vigilante** (`vigilante.py`): pausa térmica automática (CPU_TEMP_MAX),
   alerta de caída de internet y resumen diario.
