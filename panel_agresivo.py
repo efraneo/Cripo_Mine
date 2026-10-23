@@ -17,7 +17,7 @@ import streamlit as st
 
 import control
 import telegram_bot as tg
-from config import (DATA_DIR, format_hashrate, format_btc, format_uptime)
+from config import (DATA_DIR, format_hashrate, format_btc)
 from aggressive_engine import TARGETS, probe_pool
 from payout_manager import (fetch_unmineable, fetch_moneroocean,
                             fetch_binance_deposits)

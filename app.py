@@ -236,7 +236,7 @@ def render_live():
         st.caption(f"Recompensa bloque: **{est.get('reward_btc', 0):.4f} BTC**")
         st.progress(min(1.0, (stats.get("hashrate", 0) or 0) /
                         max(net.get("network_hashrate") or 1, 1)),
-                    text=f"Tu hash vs red (log-imaginario 😅)")
+                    text="Tu hash vs red (log-imaginario 😅)")
 
     st.divider()
     st.subheader("📜 Consola en vivo")

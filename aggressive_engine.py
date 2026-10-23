@@ -23,7 +23,6 @@ Funciones clave:
 """
 import json
 import os
-import platform
 import socket
 import stat
 import threading
