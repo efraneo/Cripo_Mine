@@ -1,0 +1,10 @@
+{
+  "daemon_pid": 1256,
+  "action": "none",
+  "action_ts": 1792720013.070394,
+  "paused_manual": false,
+  "paused_thermal": false,
+  "force_target": "",
+  "threads": null,
+  "updated_by": "daemon"
+}
