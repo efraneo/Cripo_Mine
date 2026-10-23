@@ -44,7 +44,7 @@ from config import load_secrets, format_hashrate, format_uptime  # noqa: E402
 from state_store import StateStore  # noqa: E402
 from aggressive_engine import AggressiveEngine, TARGETS  # noqa: E402
 from payout_manager import PayoutWatcher  # noqa: E402
-from watchdog import Watchdog       # noqa: E402
+from vigilante import Watchdog       # noqa: E402
 from binance_api import make_binance  # noqa: E402
 
 

@@ -42,7 +42,7 @@ automático:
 - **Vigilante de pagos** (`payout_manager.py`): detecta depósitos BTC en tu
   Binance vía API y avisa al instante con su valor en USD; monitorea balance
   en unMineable y MoneroOcean y avisa "payout en camino" al cruzar el umbral.
-- **Watchdog** (`watchdog.py`): pausa térmica automática (CPU_TEMP_MAX),
+- **Vigilante** (`vigilante.py`): pausa térmica automática (CPU_TEMP_MAX),
   alerta de caída de internet y resumen diario.
 - **Pipeline a Binance**: el pool paga a tu dirección de depósito → el BTC
   aparece en tu cuenta sin que toques nada (tu API key de Binance sigue
@@ -70,7 +70,7 @@ No es una fortuna, pero es flujo REAL, continuo, y llega a Binance solo.
 | `run_miner.py` | **V2**: daemon headless 24/7 (mina aunque cierres el dashboard) |
 | `telegram_bot.py` | **V2**: alertas Telegram + control remoto (/pausar /estado…) |
 | `payout_manager.py` | **V2**: vigila depósitos en Binance y balances de pools, avisa por Telegram |
-| `watchdog.py` | **V2**: pausa térmica, alertas de internet, resumen diario |
+| `vigilante.py` | **V2**: pausa térmica, alertas de internet, resumen diario |
 | `control.py` | **V2**: canal de control app ↔ daemon ↔ Telegram (control.json) |
 | `panel_agresivo.py` | **V2**: pestaña del dashboard para el motor agresivo |
 | `stratum_miner.py` | Minero Stratum V1 SHA-256 nativo (pool / bench / demo) |
