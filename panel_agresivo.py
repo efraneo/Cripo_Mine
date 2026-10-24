@@ -25,6 +25,7 @@ from pool_stats import get_price
 import ui_components as ui
 
 ENGINE_STATE_FILE = os.path.join(DATA_DIR, "engine_state.json")
+HIDRA_STATE_FILE = os.path.join(DATA_DIR, "hidra_state.json")
 PAYOUT_STATE_FILE = os.path.join(DATA_DIR, "payout_state.json")
 DAEMON_METRICS = os.path.join(DATA_DIR, "metrics_daemon.json")
 
@@ -172,6 +173,46 @@ def render(RT: dict, CFG: dict):
         control.start_daemon()
         st.success(f"Daemon reiniciado con {t_sel} hilos.")
         st.rerun()
+
+    # ------------------------------------------------------------------
+    st.subheader("1.5 · LA HIDRA (v3.7): 5 cabezas de agresividad")
+    hs = _read_json(HIDRA_STATE_FILE)
+    if not hs:
+        st.info("La HIDRA despierta cuando arranca el daemon (CORRER_BOT.bat).")
+        st.caption("Cabezas: FUEGO (config óptima xmrig) · ESCUDO ("
+                   "exclusiones correctas de Defender: carpeta + .exe + "
+                   "proceso) · MÉDICO (restaura/re-descarga xmrig.exe si "
+                   "el antivirus lo borra) · VIGÍA (vigila el hashrate "
+                   "contra el récord y auto-repara) · CASA (esta memoria "
+                   "y el comando /hidra en Telegram).")
+    else:
+        fuego = hs.get("fuego") or {}
+        h1, h2, h3, h4 = st.columns(4)
+        h1.metric("HIDRA", "ACTIVA" if hs.get("hidra_activa") else "apagada")
+        best = float(hs.get("best_hashrate") or 0)
+        h2.metric("Récord hashrate", format_hashrate(best))
+        h3.metric("Hilos óptimos (FUEGO)",
+                  str(fuego.get("fisicos", "?")) if fuego else "—",
+                  f"AMD {'sí' if fuego.get('amd') else 'no'}" if fuego
+                  else None)
+        acc = hs.get("acciones") or []
+        h4.metric("Reparaciones", str(len(acc)),
+                  f"última: {acc[-1]['tipo']}" if acc else "sin novedad")
+        if acc:
+            rows = [{"hora": time.strftime("%m-%d %H:%M",
+                                           time.localtime(a["ts"])),
+                     "tipo": a.get("tipo", ""),
+                     "detalle": (", ".join(a.get("acciones", []) or
+                                           [a.get("detalle", "")]))}
+                    for a in reversed(acc[-8:])]
+            st.dataframe(pd.DataFrame(rows), width="stretch",
+                         hide_index=True)
+        st.caption("FUEGO aplica huge pages + jit + memory-pool + randomx "
+                   "fast (requiere admin para el mod MSR). ESCUDO excluye "
+                   "en Defender la carpeta, el .exe exacto y el proceso "
+                   "xmrig.exe — la excepción de carpeta sola NO evita la "
+                   "cuarentena. Si tu antivirus NO es Defender: exclusión "
+                   "manual de bin\\xmrig-mo o ejecuta defender_fix.ps1.")
 
     # ------------------------------------------------------------------
     st.subheader("2 · Failover y gráfico en vivo")

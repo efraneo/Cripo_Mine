@@ -17,6 +17,8 @@ Comandos que el bot entiende (solo desde tu chat configurado):
   /ganancias→ PRUEBA DE GANANCIAS en vivo: saldo del pool, % del
              umbral de pago, cuánto BTC/día puedes ganar (3 escenarios)
              y la comparativa honesta ANTES vs AHORA
+  /hidra    → estado de LA HIDRA: las 5 cabezas, récord de hashrate,
+             exclusiones de Defender y reparaciones automáticas (v3.7)
   /apagar   → APAGA TODO: daemon + xmrig + este bot (v3.2)
   /ayuda    → lista de comandos
 
@@ -167,11 +169,13 @@ def msg_daily(cfg, lines: list):
 class TelegramController(threading.Thread):
     """Escucha comandos por long-polling y actúa sobre control.json."""
 
-    def __init__(self, cfg: dict, get_status_fn, on_event=None):
+    def __init__(self, cfg: dict, get_status_fn, on_event=None,
+                 hidra_fn=None):
         super().__init__(daemon=True, name="telegram-ctrl")
         self.cfg = cfg
         self.get_status = get_status_fn or (lambda *a, **k: {})
         self.on_event = on_event or (lambda m, l="info": None)
+        self.hidra_fn = hidra_fn or (lambda: None)   # v3.7: snapshot HIDRA
         self._stop = threading.Event()
 
     def stop(self):
@@ -256,6 +260,42 @@ class TelegramController(threading.Thread):
                 lines.append(f"Depósitos BTC vistos en Binance: "
                              f"<b>{deps:.8f}</b> BTC")
                 send(self.cfg, "\n".join(lines), "money")
+        elif cmd == "/hidra":
+            # v3.7: estado de las 5 cabezas de LA HIDRA
+            try:
+                ss = self.hidra_fn() or {}
+                if not ss:
+                    raise RuntimeError("hidra sin snapshot")
+                fuego = ss.get("fuego") or {}
+                esc = ss.get("escudo") or {}
+                best = float(ss.get("best_hashrate") or 0)
+                act = ss.get("acciones") or []
+                lines = ["<b>LA HIDRA (5 cabezas)</b>"]
+                lines.append(f"Estado: <b>{'ACTIVA' if ss.get('activa') else 'APAGADA'}"
+                             "</b> (fuego · escudo · médico · vigía · casa)")
+                if fuego:
+                    lines.append(f"FUEGO: hilos {fuego.get('fisicos', '?')} "
+                                 f"físicos · RAM {fuego.get('ram_gb', '?')} GB · "
+                                 f"AMD {'sí' if fuego.get('amd') else 'no'}")
+                if esc:
+                    lines.append(f"ESCUDO: admin {'sí' if esc.get('admin') else 'NO'} · "
+                                 f"{esc.get('exclusiones', 0)} rutas + "
+                                 f"{esc.get('procesos', 0)} procesos excluidos"
+                                 + (f" · <b>{esc.get('amenazas_xmrig', 0)} "
+                                    "detecciones xmrig</b>" if esc.get("amenazas_xmrig") else ""))
+                if best > 0:
+                    import config as _cfg
+                    lines.append(f"RÉCORD: <b>{_cfg.format_hashrate(best)}</b>")
+                if act:
+                    last = act[-1]
+                    lines.append(f"Última reparación: {last.get('tipo', '?')} "
+                                 f"({', '.join(last.get('acciones', []) or ['—'])})")
+                else:
+                    lines.append("Sin reparaciones necesarias: todo limpio ✔")
+                send(self.cfg, "\n".join(lines), "info")
+            except Exception as e:                 # noqa: BLE001
+                send(self.cfg, f"<b>HIDRA</b> aún sin datos ({e}). Se "
+                               f"activa al arrancar el daemon.", "info")
         elif cmd in ("/apagar", "/stop", "/cerrar"):
             control.write(action="stop", updated_by="telegram")
             send(self.cfg, "<b>APAGADO TOTAL</b> en marcha: cerrando el "
@@ -271,6 +311,8 @@ class TelegramController(threading.Thread):
                 "/cambiar — fuerza failover al siguiente pool\n"
                 "/ganancias — PRUEBA: saldo del pool + cuánto "
                 "BTC/día puedes ganar\n"
+                "/hidra — estado de LA HIDRA (5 cabezas + récord "
+                "de hashrate)\n"
                 "/apagar — APAGA TODO (daemon + xmrig + bot)\n"
                 "/ayuda — esta lista"), "info")
         else:

@@ -51,6 +51,14 @@ AVISO_HUGEPAGES = (
 AVISO_CONEXION = (
     "Error de conexión con el pool: no toques nada, el motor repite solo "
     "y si el pool sigue mal el FAILOVER cambia de pool automáticamente.")
+AVISO_BLOQUEO = (
+    "xmrig murió INMEDIATAMENTE tras arrancar → patrón típico de "
+    "ANTIVIRUS (Defender lo cuarentena aunque excluyas la carpeta: falta "
+    "la exclusión de PROCESO y del .exe exacto). La HIDRA ya está "
+    "reparándolo sola (ESCUDO + MÉDICO: exclusiones correctas, restaurar "
+    "de cuarentena y re-descargar si hace falta). Si tu antivirus NO es "
+    "Defender, agrega la exclusión de la carpeta bin\\xmrig-mo en su "
+    "panel, o ejecuta defender_fix.ps1 como administrador.")
 
 
 def es_admin() -> bool:
@@ -66,12 +74,17 @@ def es_admin() -> bool:
 
 
 def write_xmrig_config(pool_url: str, user: str, password: str,
-                       threads: int, path: str = XMRIG_CONFIG_FILE) -> str:
-    """Genera un config.json mínimo y válido para XMRig (docs: xmrig.com/docs/miner/config/pool)."""
+                       threads: int, path: str = XMRIG_CONFIG_FILE,
+                       optima: dict | None = None) -> str:
+    """Genera un config.json válido para XMRig (docs: xmrig.com/docs/miner
+    /config/pool). `optima` (CABEZA FUEGO de la HIDRA) fusiona ajustes
+    agresivos: huge-pages, huge-pages-jit, memory-pool, prioridad, randomx
+    mode/wrmsr (docs xmrig.com/docs/miner/config/cpu)."""
+    cpu = {"enabled": True, "hw-aes": None, "priority": None,
+           "max-threads-hint": max(1, int(threads)), "memory-pool": False}
     cfg = {
         "autosave": True,
-        "cpu": {"enabled": True, "hw-aes": None, "priority": None,
-                "max-threads-hint": max(1, int(threads)), "memory-pool": False},
+        "cpu": cpu,
         "pools": [{
             "url": pool_url,
             "user": user,
@@ -85,6 +98,18 @@ def write_xmrig_config(pool_url: str, user: str, password: str,
         "http": {"enabled": True, "host": "127.0.0.1", "port": 4068,
                  "access-token": None, "restricted": True},
     }
+    if optima:
+        try:
+            cpu_opt = dict(optima.get("cpu") or {})
+            cpu_opt["max-threads-hint"] = max(1, int(threads))
+            # el nº de hilos del control manual manda sobre el hint de FUEGO
+            cfg["cpu"].update(cpu_opt)
+            rx_opt = optima.get("randomx") or {}
+            if rx_opt:
+                cfg["randomx"] = dict(rx_opt)
+            cpu_opt.pop("max-threads-hint", None)
+        except Exception:
+            pass
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         import json
@@ -99,9 +124,11 @@ class ExternalMiner:
 
     def __init__(self, binary_path: str, extra_args: str = "",
                  pool_url: str = "", user: str = "", password: str = "x",
-                 threads: int = 2, on_event=None, on_share=None, on_stats=None):
+                 threads: int = 2, on_event=None, on_share=None, on_stats=None,
+                 optima: dict | None = None):
         self.binary_path = binary_path
         self.extra_args = extra_args or ""
+        self.optima = optima or None       # HIDRA · CABEZA FUEGO
         self.pool_url = pool_url
         self.user = user
         self.password = password or "x"
@@ -112,6 +139,7 @@ class ExternalMiner:
         self.proc = None
         self._stop = threading.Event()
         self._started_at = None
+        self._arranque_ts = 0.0
         self._reader = None
         # métricas
         self.hashrate = 0.0
@@ -139,7 +167,7 @@ class ExternalMiner:
         cmd = [self.binary_path]
         if "xmrig" in name:
             cfg = write_xmrig_config(self.pool_url, self.user, self.password,
-                                     self.threads)
+                                     self.threads, optima=self.optima)
             cmd += ["-c", cfg]
         else:
             # convención cpuminer-opt / minerd
@@ -163,11 +191,17 @@ class ExternalMiner:
         cmd = self._build_command()
         self.on_event("Lanzando: " + " ".join(cmd), "info")
         self._stop.clear()
-        self.proc = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, bufsize=1, cwd=DATA_DIR,
-            errors="replace")
+        try:
+            self.proc = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, bufsize=1, cwd=DATA_DIR,
+                errors="replace")
+        except OSError:
+            # v3.7: WinError 5 / acceso denegado = antivirus bloqueando
+            self.on_event(AVISO_BLOQUEO, "error")
+            raise
         self._started_at = time.time()
+        self._arranque_ts = time.time()
         self._reader = threading.Thread(target=self._read_loop, daemon=True,
                                         name="ext-reader")
         self._reader.start()
@@ -208,7 +242,16 @@ class ExternalMiner:
         except Exception:
             pass
         if not self._stop.is_set():
-            self.on_event("El minero externo terminó inesperadamente", "error")
+            # v3.7: ¿murió NADA MÁS arrancar? → bloqueo de antivirus
+            vivo_seg = time.time() - self._arranque_ts if \
+                self._arranque_ts else 999
+            if vivo_seg < 15:
+                self.on_event(AVISO_BLOQUEO, "error")
+                self.on_event(f"El minero externo terminó a los "
+                              f"{vivo_seg:.1f}s de arrancar", "error")
+            else:
+                self.on_event("El minero externo terminó inesperadamente",
+                              "error")
             self._stop.set()
 
     def _avisos_conocidos(self, line: str) -> list:

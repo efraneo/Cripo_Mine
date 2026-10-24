@@ -52,6 +52,7 @@ from vigilante import Watchdog       # noqa: E402
 from binance_api import make_binance  # noqa: E402
 from miner_manager import matar_mineros_huerfanos, es_admin  # noqa: E402
 import probar_ganancias  # noqa: E402
+import hidra_minera  # noqa: E402
 
 
 def log(msg: str, level: str = "info"):
@@ -127,6 +128,20 @@ def validate_environment() -> bool:
                      "potencial. Cierra con DETENER_TODO.bat y vuelve a "
                      "abrir CORRER_BOT.bat aceptando la ventanita de "
                      "Windows (UAC).", "warn")
+    # v3.7: ¿xmrig.exe desapareció (Defender)? la HIDRA lo repara antes
+    # de empezar; si ni reparando hay binario, avisa con instrucciones.
+    if not hidra_minera.binario_vivo(cfg):
+        log("xmrig no está: LA HIDRA (CABEZA MÉDICO) intenta restaurar de "
+            "cuarentena o re-descargar…", "warn")
+        ruta = hidra_minera.medico_binario(cfg, on_event=lambda m, l="info":
+                                           log(m, l))
+        if ruta:
+            log(f"Binario recuperado: {ruta}", "ok")
+        else:
+            tg.send(cfg, "<b>Sin minero</b>: xmrig.exe fue borrado por el "
+                         "antivirus y no pude recuperarlo. Ejecuta "
+                         "defender_fix.ps1 como administrador y vuelve a "
+                         "abrir CORRER_BOT.bat.", "error")
     return True
 
 
@@ -136,6 +151,7 @@ def shutdown(reason: str = ""):
         payout.stop()
         wd.stop()
         tctrl.stop()
+        hidra.stop()
         matar_mineros_huerfanos()   # cierra xmrig.exe/cpuminer huérfanos
         tg.msg_daemon_stopped(cfg, reason)
         control.write(action="none", daemon_pid=None, updated_by="daemon")
@@ -153,13 +169,24 @@ def main():
     binance = make_binance(cfg.get("BINANCE_API_KEY", ""),
                            cfg.get("BINANCE_API_SECRET", ""))
 
-    global payout, wd, tctrl
+    global payout, wd, tctrl, hidra
     payout = PayoutWatcher(cfg, binance, on_alert=lambda m, l: alert(m, l))
     wd = Watchdog(cfg, engine=engine, get_status_fn=get_status,
                   send_fn=lambda m, l="info": tg.send(cfg, m, l),
                   on_event=lambda m, l="info": log(m, l))
+    # v3.7 LA HIDRA: las 5 cabezas comparten el canal de eventos del daemon
+    hidra = hidra_minera.init_hidra(
+        cfg,
+        on_event=lambda m, l="info": log(m, l),
+        get_hashrate=lambda: (store.last() or {}).get("hashrate", 0) or 0,
+        get_running=lambda: engine.is_running(),
+        on_reparar=lambda motivo: (log(motivo, "warn"),
+                                   tg.send(cfg, f"🛠 <b>HIDRA</b>: {motivo}",
+                                           "warn"),
+                                   engine.relanzar(motivo)))
     tctrl = tg.TelegramController(cfg, get_status,
-                                  on_event=lambda m, l="info": log(m, l))
+                                  on_event=lambda m, l="info": log(m, l),
+                                  hidra_fn=lambda: hidra.snapshot())
 
     if _args.once:
         log("Modo --once: diagnóstico de una pasada", "info")
@@ -178,6 +205,7 @@ def main():
     payout.start()
     wd.start()
     tctrl.start()
+    hidra.start()      # CABEZA VIGÍA vigilando el hashrate 24/7
     tg.msg_daemon_started(cfg, get_status())
     # v3.5: PRUEBA DE GANANCIAS inmediata — en tu Telegram verás el saldo
     # del pool, el % del umbral y cuánto BTC/día puedes ganar.

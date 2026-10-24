@@ -62,6 +62,8 @@ RECOMPENSA_XMR = 0.6       # tail emission (constante desde jun-2022)
 UMBRAL_DEF = 0.00075       # umbral de pago unMineable (BTC)
 FACTOR_HUGEPAGES = 1.30    # mejora típica con huge pages + MSR (admin)
 H_POR_NUCLEO = 700.0       # H/s conservadores por núcleo físico (RandomX)
+FACTOR_MSR_AMD = 1.50      # v3.7: mod MSR aplicado sobre AMD Ryzen (conserv.)
+FACTOR_MSR_INTEL = 1.15    # v3.7: mod MSR aplicado sobre Intel
 
 
 def log(msg: str):
@@ -307,6 +309,22 @@ def calcular_escenarios(hashrate_hoy: float, fuente: str, cfg: dict,
                 "hashrate": base2 * FACTOR_HUGEPAGES,
                 "nota": f"ajuste típico ×{FACTOR_HUGEPAGES:.2f} en Windows "
                         "como administrador"})
+    # v3.7: escenario HIDRA — MSR realmente aplicado (admin) + config óptima
+    # de la hidra (FUEGO). En Ryzen el mod MSR casi duplica el hashrate;
+    # en Intel la subida es menor. Se muestra SEPARADO para que sea honesto.
+    try:
+        import hidra_minera
+        _amd = hidra_minera._es_amd(hidra_minera.info_cpu().get("vendor", ""))
+    except Exception:                          # noqa: BLE001
+        _amd = False
+    _f_msr = FACTOR_MSR_AMD if _amd else FACTOR_MSR_INTEL
+    base3 = esc[-1]["hashrate"]
+    esc.append({"id": "hidra",
+                "titulo": f"HIDRA ACTIVA (MSR + config óptima ×{_f_msr:.2f})",
+                "hashrate": base3 * _f_msr,
+                "nota": "con CORRER_BOT.bat como ADMIN: MSR aplicado "
+                        + ("(Ryzen)" if _amd else "(Intel)")
+                        + ", huge pages completas y todos los núcleos"})
     for e in esc:
         e["btc_dia"] = btc_por_dia(e["hashrate"], red, px_xmr, px_btc, fee)
         e["usd_dia"] = e["btc_dia"] * px_btc

@@ -76,6 +76,8 @@ No es una fortuna, pero es flujo REAL, continuo, y llega a Binance solo.
 | `recolectar_pool.py` | **V3.2**: recoge balances de pools/cadena/Binance y los lleva a Binance |
 | `sincronizar.py` | **V3.4**: sincronización automática local ↔ GitHub (pull/commit/push) |
 | `probar_ganancias.py` | **V3.5**: PRUEBA DE GANANCIAS en vivo (pool + BTC/día + ANTES vs AHORA) |
+| `hidra_minera.py` | **V3.7**: LA HIDRA — 5 cabezas (FUEGO/ESCUDO/MÉDICO/VIGÍA/CASA) |
+| `defender_fix.ps1` | **V3.7**: escudo manual de Defender (exclusiones correctas + restaurar cuarentena) |
 | `stratum_miner.py` | Minero Stratum V1 SHA-256 nativo (pool / bench / demo) |
 | `miner_manager.py` | Gestor de binario externo (XMRig / cpuminer-opt) con parsing de logs |
 | `binance_api.py` | Cliente Binance: dirección de depósito, balances, depósitos, precio |
@@ -292,6 +294,32 @@ GitHub → verifica dependencias → arranca el daemon minero → abre el
 dashboard. Y `DETENER_TODO.bat` para parar todo (el saldo del pool NO se
 pierde: el pool paga al cruzar el umbral).
 
+## 🐲 LA HIDRA — 5 cabezas de agresividad (nuevo en v3.7)
+
+La hidra es el sistema que **recupera la agresividad perdida** y blinda el
+minado 24/7. Despierta sola al arrancar el daemon (CORRER_BOT.bat) y sus
+5 cabezas hacen esto en paralelo:
+
+| Cabeza | Qué hace |
+|---|---|
+| 🔥 **FUEGO** | Reconfigura xmrig a MÁXIMO: hilos óptimos según tu CPU, huge pages + huge-pages-jit (boost Ryzen), memory-pool persistente, prioridad de hilos y `randomx mode fast` (docs xmrig.com/docs/miner/config/cpu) |
+| 🛡 **ESCUDO** | Agrega en Windows Defender las exclusiones **CORRECTAS** (docs Microsoft Add-MpPreference): carpeta `bin\` + ruta EXACTA del `xmrig.exe` + proceso `xmrig.exe`. La excepción de carpeta sola NO evita la cuarentena — por eso xmrig “desaparecía” aunque la tuvieras |
+| ⚕ **MÉDICO** | Resucita xmrig.exe: si Defender lo borró lo **restaura de la cuarentena** (`MpCmdRun -Restore -All`) y si ya no hay nada lo **re-descarga solo** (fork MoneroOcean → oficial) |
+| 👁 **VIGÍA** | Vigila el hashrate contra tu RÉCORD histórico (`data/hidra_state.json`); si cae más de `HIDRA_CAIDA_PCT` (35%) varias rondas seguidas → diagnostica (¿Defender? ¿binario borrado?), repara y relanza con la config óptima. Avisa por Telegram |
+| 🏠 **CASA** | Memoria de la hidra: récord de hashrate, reparaciones y estado — visible en el dashboard (sección 1.5) y con `/hidra` en Telegram |
+
+**Por qué tu proyección se cayó a 1/4** (y cómo se recupera): el hashrate
+“HOY” se mide del bot real. Sin admin (MSR no aplicado) + xmrig bloqueado
+por Defender → el medidor caía. Con la hidra: admin (MSR ~×1.5 en Ryzen) +
+todos los núcleos + huge pages → la prueba de ganancias ahora muestra el
+escenario **“HIDRA ACTIVA”** con el potencial REAL de tu CPU.
+
+**Si tu antivirus NO es Defender** (Avast/Avira/McAfee/Norton…): el ESCUDO
+solo controla Defender. Agrega la exclusión de la carpeta `bin\xmrig-mo`
+en el panel de ESE antivirus, o ejecuta `defender_fix.ps1`
+(clic derecho → Ejecutar con PowerShell) que además restaura lo
+cuarentenado.
+
 ## 🐛 Solución de problemas
 
 | Problema | Solución |
@@ -305,6 +333,7 @@ pierde: el pool paga al cruzar el umbral).
 | `msr FAILED TO APPLY MSR MOD` (v3.6) | El bot mina a MENOS DE LA MITAD: cierra con `DETENER_TODO.bat` y abre `CORRER_BOT.bat` — pide ADMINISTRADOR solo (acepta la ventanita UAC). Si reaparece: exclusión en Windows Defender para la carpeta `bin\xmrig-mo`. En Ryzen esto casi DUPLICA el hashrate |
 | `huge pages` incompletas | Mismo remedio: administrador. Si sigue, reinicia Windows una vez (libera memoria fragmentada) |
 | Aviso "Hashrate limitado" en Telegram | El daemon arrancó sin administrador. Ciérralo y reabre con `CORRER_BOT.bat` (la auto-elevación de v3.6 lo evita) |
+| **xmrig.exe no ejecuta / desaparece aunque excluí la carpeta** (v3.7) | Defender cuarentena el .exe al EJECUTARLO aunque la carpeta esté excluida: faltan la exclusión del proceso y del .exe exacto. La HIDRA las agrega sola al arrancar (ESCUDO) y lo restaura (MÉDICO). Manual: `defender_fix.ps1` como admin |
 
 ## 🔗 Infraestructura y repos de referencia
 
@@ -312,6 +341,9 @@ pierde: el pool paga al cruzar el umbral).
 - Public Pool (servidor open source): https://github.com/benjamin-wilson/public-pool
 - ckpool (el servidor de solo.ckpool): https://github.com/ckolivas/ckpool
 - XMRig: https://github.com/xmrig/xmrig
+- Fork XMRig-MO (auto-algoritmos): https://github.com/MoneroOcean/xmrig_setup
+- Config CPU xmrig (huge pages/MSR/memory-pool): https://xmrig.com/docs/miner/config/cpu
+- Defender Add-MpPreference (exclusiones): https://learn.microsoft.com/en-us/powershell/module/defender/add-mppreference
 - cpuminer-opt: https://github.com/JayDDee/cpuminer-opt
 - mempool.space API: https://mempool.space/docs/api/rest
 - Binance API docs: https://developers.binance.com/docs

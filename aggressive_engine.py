@@ -34,6 +34,7 @@ from collections import deque
 import requests
 
 import control
+import hidra_minera
 from config import BASE_DIR, BIN_DIR
 from miner_manager import ExternalMiner
 
@@ -241,6 +242,10 @@ class AggressiveEngine:
         self.on_event = on_event or (lambda m, l="info": None)
         self.on_share = on_share or (lambda j, n, s: None)
         self.on_stats = on_stats or (lambda s: None)
+        # HIDRA (singleton compartido con run_miner; si nadie la creó aún,
+        # la levanta el motor con su propio canal de eventos)
+        self.hidra = hidra_minera.get_hidra() or hidra_minera.init_hidra(
+            cfg, on_event=self.on_event)
 
         self.binary_path = ""
         self.miner: ExternalMiner | None = None
@@ -289,13 +294,30 @@ class AggressiveEngine:
             pool_url=target["url"], user=user, password="x",
             threads=threads,
             on_event=self.on_event, on_share=self._wrap_share(),
-            on_stats=self.on_stats)
+            on_stats=self.on_stats,
+            optima=self.hidra.optima_actual() if self.hidra.activa else None)
+
+    def relanzar(self, motivo: str = "hidra reoptimiza"):
+        """Relanza el objetivo actual con la config óptima (lo usa la
+        CABEZA VIGÍA tras reparar una caída de hashrate)."""
+        if not self.current_target:
+            return
+        threads = control.read().get("threads") or self.cfg.get(
+            "CPU_THREADS", 2)
+        self._launch(self.current_target, motivo, int(threads))
 
     # ------------------------------------------------------------------
     def start(self):
         if self.is_running():
             self.on_event("El motor agresivo ya está en marcha", "warn")
             return
+        # v3.7 HIDRA: FUEGO+ESCUDO+MÉDICO despiertan ANTES de lanzar xmrig
+        # (exclusiones de Defender correctas + binario sano + config óptima)
+        try:
+            if self.hidra.activa:
+                self.hidra.inicial()
+        except Exception as e:                      # noqa: BLE001
+            self.on_event(f"HIDRA inicial: {e}", "warn")
         self.binary_path = ensure_binary(self.cfg, self.on_event)
         available = self.targets_available()
         if not available:
@@ -319,6 +341,35 @@ class AggressiveEngine:
         self._monitor.start()
         self._save_state()
 
+    def _arrancar_minero(self, target, threads: int) -> bool:
+        """Lanza el minero; si el antivirus/Defender lo impide, la HIDRA
+        repara (excluir + restaurar + re-descargar) y reintenta UNA vez.
+        Devuelve True si quedó corriendo (v3.7: nunca crashear el daemon)."""
+        for intento in (1, 2):
+            try:
+                self.miner.start()
+                return True
+            except Exception as e:                  # noqa: BLE001
+                self.on_event(f"Lanzamiento {intento}/2 falló: "
+                              f"{str(e)[:120]}", "warn")
+                if intento == 1 and self.hidra.activa:
+                    try:
+                        self.hidra.aviso_bloqueo(
+                            f"lanzamiento falló: {str(e)[:80]}")
+                    except Exception:               # noqa: BLE001
+                        pass
+                    # el binario pudo cambiar tras la reparación
+                    try:
+                        self.binary_path = ensure_binary(self.cfg,
+                                                         self.on_event)
+                    except Exception:               # noqa: BLE001
+                        pass
+                    self.miner = self._make_miner(target, threads)
+        self.on_event("No se pudo lanzar el minero tras reparar; el monitor "
+                      "seguirá reintentando y la HIDRA reparando", "error")
+        return False
+
+    # ------------------------------------------------------------------
     def _launch(self, target, reason: str, threads: int):
         with threading.Lock():
             if self.miner is not None:
@@ -327,7 +378,7 @@ class AggressiveEngine:
                 except Exception:
                     pass
             self.miner = self._make_miner(target, threads)
-            self.miner.start()
+            self._arrancar_minero(target, threads)
             prev = (self.current_target or {}).get("id", "—")
             self.current_target = target
             self.target_started = time.time()
@@ -414,6 +465,19 @@ class AggressiveEngine:
                     else:
                         self.on_event(f"Proceso muerto; reintento "
                                       f"{self._restarts}/3", "warn")
+                        # v3.7: ¿murió casi al instante? → antivirus:
+                        # la HIDRA repara (excluir+restaurar+re-descargar)
+                        try:
+                            if self.hidra.activa and self.target_started and \
+                                    time.time() - self.target_started < 60:
+                                self.hidra.aviso_bloqueo(
+                                    "muerte <60s tras arrancar")
+                            elif self.hidra.activa and \
+                                    not hidra_minera.binario_vivo(self.cfg):
+                                self.hidra.aviso_bloqueo(
+                                    "binario desaparecido")
+                        except Exception:           # noqa: BLE001
+                            pass
                         threads = ctrl.get("threads") or \
                             self.cfg.get("CPU_THREADS", 2)
                         if self.current_target:
@@ -460,6 +524,11 @@ class AggressiveEngine:
     # ------------------------------------------------------------------
     def snapshot(self) -> dict:
         lat = {t["id"]: probe_pool(t["url"]) for t in TARGETS}
+        hidra_ss = None
+        try:
+            hidra_ss = self.hidra.snapshot()
+        except Exception:
+            pass
         return {
             "mode": self.MODE,
             "running": self.is_running(),
@@ -472,6 +541,7 @@ class AggressiveEngine:
             "switch_log": list(self.switch_log)[-20:],
             "latencias_ms": lat,
             "disponibles": [t["id"] for t in self.targets_available()],
+            "hidra": hidra_ss,
         }
 
     def _save_state(self):
