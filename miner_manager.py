@@ -77,9 +77,10 @@ def write_xmrig_config(pool_url: str, user: str, password: str,
                        threads: int, path: str = XMRIG_CONFIG_FILE,
                        optima: dict | None = None) -> str:
     """Genera un config.json válido para XMRig (docs: xmrig.com/docs/miner
-    /config/pool). `optima` (CABEZA FUEGO de la HIDRA) fusiona ajustes
-    agresivos: huge-pages, huge-pages-jit, memory-pool, prioridad, randomx
-    mode/wrmsr (docs xmrig.com/docs/miner/config/cpu)."""
+    /config/pool). v3.8: TLS automático si la url es stratum+ssl://.
+    `optima` (CABEZA FUEGO de la HIDRA) fusiona ajustes agresivos: huge-
+    pages, huge-pages-jit, memory-pool, prioridad, randomx mode/wrmsr."""
+    usa_tls = "ssl" in (pool_url or "").split("://")[0]
     cpu = {"enabled": True, "hw-aes": None, "priority": None,
            "max-threads-hint": max(1, int(threads)), "memory-pool": False}
     cfg = {
@@ -91,7 +92,7 @@ def write_xmrig_config(pool_url: str, user: str, password: str,
             "pass": password or "x",
             "rig-id": None,
             "nicehash": False,
-            "tls": False,
+            "tls": usa_tls,
             "keepalive": True,
         }],
         "print-time": 5,

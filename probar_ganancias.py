@@ -1,41 +1,25 @@
 #!/usr/bin/env python3
 """
-probar_ganancias.py — PRUEBA DE GANANCIAS con datos 100% reales (v3.5)
-=======================================================================
-Responde con números, no con humo:
+probar_ganancias.py — PRUEBA DE GANANCIAS con datos 100% reales
+===============================================================
+Responde con números, no con humo: "¿Cuánto BTC puedo ganar AHORA?"
 
-    "¿Cuánto BTC puedo ganar AHORA y por qué es más que antes?"
+Consulta EN VIVO (público): hashrate MEDIDO por tu bot
+(data/metrics_daemon.json, últimos 45 min), saldo REAL en unMineable y
+ZergPool (respaldo v3.9), red Monero (Blockchair), precios BTC (Binance
+→ mempool) y XMR (Kraken → CoinPaprika), y tu Binance si hay claves.
 
-Qué consulta EN VIVO (todo público, sin claves):
-  • Hashrate MEDIDO por tu propio bot (data/metrics_daemon.json o
-    data/metrics.json — la última medición de los últimos 45 min)
-  • Saldo REAL pendiente en unMineable (API v4) y % del umbral de pago
-  • Dificultad de la red Monero (Blockchair) → hashrate de red
-  • Precio BTC (Binance → mempool.space) y XMR (Kraken → CoinPaprika)
-  • Tu Binance: dirección de depósito + saldo spot (si hay claves API)
+Modelo (la matemática de la red Monero):
+    XMR/día = 0.6 × 720 bloques/día × (tu H/s ÷ red H/s)
+    BTC/día = XMR/día × precio_XMR ÷ precio_BTC × (1 − fee)
 
-Modelo (la MISMA matemática que usa la red Monero):
-    XMR/día = 0.6 (recompensa por bloque, tail emission)
-              × 720 bloques/día
-              × (tu hashrate ÷ hashrate de la red)
-    BTC/día = XMR/día × precio_XMR ÷ precio_BTC × (1 − fee del pool)
+Escenarios: HOY (medido) · TODOS LOS NÚCLEOS · +HUGE PAGES/MSR (×1.30)
+· HIDRA ACTIVA (MSR real según CPU). Incluye la ruta honesta a la regla
+de USD 10/día y el payout estimado (NO fiable si el hashrate medido
+está en el suelo: el número baja solo cuando el motor vuelve a minar).
 
-Escenarios que compara:
-    [1] HOY                → tu hashrate actual (medido o estimado)
-    [2] TODOS LOS NÚCLEOS  → escenario HOY escalado a los núcleos físicos
-    [3] + HUGE PAGES/MSR   → escenario [2] × 1.30 (xmrig como admin)
-
-Y la prueba honesta ANTES vs AHORA:
-    ANTES  (modo XMR + wallet bloqueada)  → BTC recibido: 0.00
-    AHORA (SOLO-BTC → Binance automático) → 100% de lo minado llega
-    en BTC a tu dirección (Binance si es su dirección de depósito).
-
-Uso:
-    python probar_ganancias.py              # reporte consola + Telegram
-    python probar_ganancias.py --sin-tg     # solo consola
-    python probar_ganancias.py --hashrate 1500   # fijar H/s a mano
-    python probar_ganancias.py --tg-solo    # solo enviar a Telegram
-También lo usa el daemon (evidencia periódica) y el comando /ganancias.
+Uso: python probar_ganancias.py [--sin-tg] [--tg-solo] [--hashrate N]
+Lo usan el daemon (evidencia periódica) y el comando /ganancias.
 """
 import argparse
 import json
@@ -51,6 +35,8 @@ import requests  # noqa: E402
 
 UA = {"User-Agent": "btc-miner-studio-prueba/3.5"}
 UM_API = "https://api.unmineable.com/v4/address/{addr}?coin=BTC"
+ZERG_API = ("https://api.zergpool.com:8080/api/wallet?address={addr}"
+            "&currency=BTC")
 BLOCKCHAIR_API = "https://api.blockchair.com/monero/stats"
 BINANCE_PRICE = "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"
 MP_PRICE_API = "https://mempool.space/api/v1/prices"
@@ -70,9 +56,7 @@ def log(msg: str):
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
-# ---------------------------------------------------------------------------
-# Secrets (mismo patrón que recolectar_pool.py: tomllib + fallback simple)
-# ---------------------------------------------------------------------------
+# --- Secrets (mismo patrón que recolectar_pool.py: tomllib + fallback) ---
 def cargar_secrets() -> dict:
     path = os.path.join(BASE, ".streamlit", "secrets.toml")
     if not os.path.exists(path):
@@ -100,16 +84,12 @@ def cargar_secrets() -> dict:
 def _get_json(url: str, timeout: int = 10):
     try:
         r = requests.get(url, headers=UA, timeout=timeout)
-        if r.status_code != 200:
-            return None
-        return r.json()
+        return r.json() if r.status_code == 200 else None
     except Exception:
         return None
 
 
-# ---------------------------------------------------------------------------
-# 1) Hashrate: medido por tu bot, o estimado por tus núcleos
-# ---------------------------------------------------------------------------
+# --- 1) Hashrate: medido por tu bot, o estimado por tus núcleos ---
 def _leer_metrics(path: str, max_edad: float = 2700.0):
     """Último hashrate del archivo de métricas si es reciente (<45 min)."""
     try:
@@ -132,10 +112,8 @@ def _leer_metrics(path: str, max_edad: float = 2700.0):
 def hashrate_medido() -> tuple:
     """(hashrate_Hs, fuente) — primero el daemon, luego el dashboard."""
     for nombre, path in (
-            ("daemon (metrics_daemon.json)",
-             os.path.join(BASE, "data", "metrics_daemon.json")),
-            ("dashboard (metrics.json)",
-             os.path.join(BASE, "data", "metrics.json"))):
+            ("daemon", os.path.join(BASE, "data", "metrics_daemon.json")),
+            ("dashboard", os.path.join(BASE, "data", "metrics.json"))):
         hr, ts = _leer_metrics(path)
         if hr > 0:
             return hr, nombre
@@ -165,9 +143,7 @@ def hashrate_estimado() -> tuple:
                                f"{H_POR_NUCLEO:.0f} H/s)"
 
 
-# ---------------------------------------------------------------------------
-# 2) Datos de mercado y de la red
-# ---------------------------------------------------------------------------
+# --- 2) Datos de mercado y de la red ---
 def precio_btc() -> float:
     d = _get_json(BINANCE_PRICE, timeout=8)
     try:
@@ -213,9 +189,7 @@ def red_xmr() -> dict:
     return {"hashrate": net, "exacto": diff > 0, "dificultad": diff}
 
 
-# ---------------------------------------------------------------------------
-# 3) Pools y Binance
-# ---------------------------------------------------------------------------
+# --- 3) Pools y Binance ---
 def datos_unmineable(addr: str) -> dict:
     if not addr:
         return {}
@@ -228,13 +202,30 @@ def datos_unmineable(addr: str) -> dict:
             return default
 
     return {
-        "balance": _f("balance"),
-        "payable": _f("balance_payable"),
+        "balance": _f("balance"), "payable": _f("balance_payable"),
         "umbral": _f("payment_threshold", UMBRAL_DEF) or UMBRAL_DEF,
         "fee": (_f("mining_fee", 1.0) / 100.0) or 0.01,
         "pagos_previos": len(d.get("payments") or []),
-        "error_pago": bool((d.get("err_flags") or {}).get("payment_error")),
-    }
+        "error_pago": bool((d.get("err_flags") or {}).get("payment_error"))}
+
+
+def datos_zergpool(addr: str) -> dict:
+    """Saldo en ZergPool (respaldo BTC de v3.9). Si la API no responde
+    devuelve {} y el reporte simplemente lo omite."""
+    if not addr:
+        return {}
+    d = _get_json(ZERG_API.format(addr=addr), timeout=8) or {}
+
+    def _f(k):
+        try:
+            return float(d.get(k, 0.0) or 0.0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    bal, unsold = _f("balance"), _f("unsold")
+    if bal <= 0 and unsold <= 0:
+        return {}
+    return {"balance": bal, "pendiente": unsold, "total": bal + unsold}
 
 
 def datos_binance(cfg: dict) -> dict:
@@ -259,9 +250,7 @@ def datos_binance(cfg: dict) -> dict:
     return out
 
 
-# ---------------------------------------------------------------------------
-# 4) Modelo de ganancias y escenarios
-# ---------------------------------------------------------------------------
+# --- 4) Modelo de ganancias y escenarios ---
 def btc_por_dia(hashrate: float, red: dict, px_xmr: float, px_btc: float,
                 fee: float = 0.01) -> float:
     """XMR-equivalente diario de tu hashrate RandomX, convertido a BTC."""
@@ -276,8 +265,7 @@ def btc_por_dia(hashrate: float, red: dict, px_xmr: float, px_btc: float,
 def calcular_escenarios(hashrate_hoy: float, fuente: str, cfg: dict,
                         red: dict, px_btc: float, px_xmr: float,
                         fee: float) -> list:
-    fis, logicos = _nucleos()
-    hilos_cfg = 0
+    fis, _logicos = _nucleos()
     try:
         hilos_cfg = int(float(cfg.get("CPU_THREADS") or 0))
     except (TypeError, ValueError):
@@ -309,9 +297,7 @@ def calcular_escenarios(hashrate_hoy: float, fuente: str, cfg: dict,
                 "hashrate": base2 * FACTOR_HUGEPAGES,
                 "nota": f"ajuste típico ×{FACTOR_HUGEPAGES:.2f} en Windows "
                         "como administrador"})
-    # v3.7: escenario HIDRA — MSR realmente aplicado (admin) + config óptima
-    # de la hidra (FUEGO). En Ryzen el mod MSR casi duplica el hashrate;
-    # en Intel la subida es menor. Se muestra SEPARADO para que sea honesto.
+    # v3.7: escenario HIDRA — MSR real según CPU; separado por honestidad
     try:
         import hidra_minera
         _amd = hidra_minera._es_amd(hidra_minera.info_cpu().get("vendor", ""))
@@ -322,15 +308,27 @@ def calcular_escenarios(hashrate_hoy: float, fuente: str, cfg: dict,
     esc.append({"id": "hidra",
                 "titulo": f"HIDRA ACTIVA (MSR + config óptima ×{_f_msr:.2f})",
                 "hashrate": base3 * _f_msr,
-                "nota": "con CORRER_BOT.bat como ADMIN: MSR aplicado "
-                        + ("(Ryzen)" if _amd else "(Intel)")
-                        + ", huge pages completas y todos los núcleos"})
+                "nota": ("con CORRER_BOT.bat como ADMIN: MSR aplicado "
+                         + ("(Ryzen)" if _amd else "(Intel)")
+                         + ", huge pages y todos los núcleos")})
     for e in esc:
         e["btc_dia"] = btc_por_dia(e["hashrate"], red, px_xmr, px_btc, fee)
         e["usd_dia"] = e["btc_dia"] * px_btc
         e["btc_semana"] = e["btc_dia"] * 7
         e["btc_mes"] = e["btc_dia"] * 30
     return esc
+
+
+def meta_diez_dolares(esc: list) -> dict | None:
+    """Ruta honesta a la regla USD 10/día: H/s necesarios y nº de PCs
+    equivalentes al tuyo. None si aún no hay base de cálculo."""
+    base = next((e for e in esc if (e.get("hashrate") or 0) > 0), None)
+    if not base or (base.get("usd_dia") or 0) <= 0:
+        return None
+    usd_h = base["usd_dia"] / base["hashrate"]      # USD por H/s·día
+    return None if usd_h <= 0 else {
+        "hs": 10.0 / usd_h,
+        "pcs": 10.0 / usd_h / max(base["hashrate"], 1.0)}
 
 
 def _fmt_dias(d: float) -> str:
@@ -341,24 +339,21 @@ def _fmt_dias(d: float) -> str:
     return f"{d:.1f} días"
 
 
-# ---------------------------------------------------------------------------
-# 5) Reportes (consola + Telegram)
-# ---------------------------------------------------------------------------
+# --- 5) Reportes (consola + Telegram) ---
 def _escribir_esc(e: dict, px_btc: float) -> list:
     L = [f"    {e['titulo']}: {e['hashrate']:.0f} H/s"
          + (f"  ({e['nota']})" if e.get("nota") else "")]
     if e["btc_dia"] > 0:
-        L.append(f"      → {e['btc_dia']:.8f} BTC/día "
-                 f"(≈ USD {e['usd_dia']:.4f}) · "
-                 f"{e['btc_semana']:.8f} BTC/semana · "
+        L.append(f"      → {e['btc_dia']:.8f} BTC/día (≈ USD "
+                 f"{e['usd_dia']:.4f}) · {e['btc_semana']:.8f} BTC/sem · "
                  f"{e['btc_mes']:.6f} BTC/mes")
     else:
-        L.append("      → sin precios de mercado ahora mismo, "
-                 "inténtalo en unos minutos")
+        L.append("      → sin precios de mercado ahora mismo")
     return L
 
 
-def reporte(cfg, med, fuente, red, px_btc, px_xmr, um, bn, esc) -> str:
+def reporte(cfg, med, fuente, red, px_btc, px_xmr, um, bn, esc,
+            zg=None) -> str:
     L = []
     L.append("=" * 64)
     L.append("  PRUEBA DE GANANCIAS — ¿cuánto BTC ganas AHORA?")
@@ -377,50 +372,64 @@ def reporte(cfg, med, fuente, red, px_btc, px_xmr, um, bn, esc) -> str:
         est, fnt = hashrate_estimado()
         L.append(f"    El bot aún no ha minado: uso estimación "
                  f"{est:.0f} H/s ({fnt})")
-        L.append("    → CORRE EL BOT (CORRER_BOT.bat) y vuelve a ejecutar "
-                 "esto para ver TU número real.")
+        L.append("    → CORRE EL BOT (CORRER_BOT.bat) y reintenta para "
+                 "ver TU número real.")
     L.append("")
     L.append("[2] CUÁNTO BTC PUEDES GANAR (matemática de la red Monero)")
     L.append("    XMR/día = 0.6 × 720 bloques × (tu H/s ÷ red H/s)")
     for e in esc:
         L.extend(_escribir_esc(e, px_btc))
+    meta = meta_diez_dolares(esc)
+    if meta:
+        L.append("")
+        L.append("[2b] TU REGLA: USD 10/DÍA — la ruta honesta")
+        L.append(f"    Necesitas ~{meta['hs']:,.0f} H/s constantes "
+                 f"(tú ahora: {esc[0]['hashrate']:,.0f} H/s) → "
+                 f"~{meta['pcs']:.0f} PCs como la tuya 24/7.")
+        L.append("    Caminos: (a) HIDRA al máximo (admin: MSR + huge "
+                 "pages), (b) sumar PCs con este mismo bot, (c) hardware "
+                 "mayor — detalles con /hidra.")
     L.append("")
-    L.append("[3] POR QUÉ AHORA GANAS MÁS QUE ANTES")
-    L.append("    ANTES (modo XMR): minabas, pero el XMR iba a una wallet "
-             "que no podías abrir → BTC recibido: 0.00")
-    L.append("    AHORA (modo SOLO-BTC): TODO lo minado se acredita en BTC "
-             "directo en tu dirección → a Binance automáticamente.")
     plus = ""
-    if len(esc) >= 3 and esc[0].get("btc_dia"):
-        hoy, ult = esc[0]["btc_dia"], esc[-1]["btc_dia"]
-        if ult > hoy > 0:
-            plus = f" → hasta ×{ult / hoy:.1f} más que hoy optimizando"
-    L.append(f"    Mejora posible con núcleos completos + huge pages{plus}")
+    if len(esc) >= 3 and esc[0].get("btc_dia") and \
+            esc[-1]["btc_dia"] > esc[0]["btc_dia"] > 0:
+        plus = (f" Mejora hasta ×{esc[-1]['btc_dia'] / esc[0]['btc_dia']:.1f}"
+                " optimizando.")
+    L.append("[3] ANTES vs AHORA")
+    L.append("    ANTES (wallet XMR bloqueada) → BTC recibido: 0.00")
+    L.append("    AHORA (SOLO-BTC) → 100% llega en BTC a tu Binance." + plus)
     L.append("")
-    L.append("[4] TU POOL unMineable (dónde está tu dinero)")
+    L.append("[4] TUS POOLS BTC (dónde está tu dinero)")
     if um:
         pct = min(100.0, um["payable"] / um["umbral"] * 100) \
             if um["umbral"] else 0.0
-        L.append(f"    Pendiente de pago : {um['balance']:.8f} BTC "
+        L.append(f"    unMineable        : {um['balance']:.8f} BTC "
                  f"(pagable {um['payable']:.8f})")
         L.append(f"    Umbral            : {um['umbral']:.5f} BTC "
                  f"→ progreso {pct:.1f}%")
         if esc and esc[0]["btc_dia"] > 0:
             falta = max(um["umbral"] - um["payable"], 0.0)
             dias = falta / esc[0]["btc_dia"]
-            L.append(f"    Payout estimado   : en {_fmt_dias(dias)} "
-                     f"minando sin parar (escenario HOY)")
+            if (esc[0]["hashrate"] or 0) < 100:
+                L.append(f"    Payout estimado   : NO FIABLE AHORA — "
+                         f"hashrate medido {esc[0]['hashrate']:.0f} H/s "
+                         "(normal: ~700+). Al volver a minar baja a días.")
+            else:
+                L.append(f"    Payout estimado   : en {_fmt_dias(dias)} "
+                         "minando sin parar (escenario HOY)")
         L.append(f"    Pagos ya recibidos: {um['pagos_previos']}")
         L.append("    ➜ Al cruzar el umbral el pool paga SOLO en BTC a "
-                 "BTC_PAYOUT_ADDRESS; si es la dirección de depósito de "
-                 "Binance, cae directo en tu cuenta. Apagar el bot NO "
-                 "borra este saldo.")
+                 "BTC_PAYOUT_ADDRESS (a Binance). Apagar el bot NO borra "
+                 "este saldo.")
         if um["error_pago"]:
             L.append("    [!] El pool reporta error de pago: revisa la "
                      "dirección en secrets.")
     else:
         L.append("    Sin datos (revisa BTC_PAYOUT_ADDRESS en secrets o "
                  "tu conexión).")
+    if zg:
+        L.append(f"    Respaldo ZergPool : {zg['total']:.8f} BTC "
+                 f"(pagable {zg['balance']:.8f})")
     L.append("")
     L.append("[5] BINANCE (destino final)")
     if bn and bn.get("error") == "sin-claves":
@@ -431,9 +440,8 @@ def reporte(cfg, med, fuente, red, px_btc, px_xmr, um, bn, esc) -> str:
             L.append(f"    Dirección de depósito BTC: {bn['direccion']}")
         if bn.get("saldo_btc") is not None:
             sb = bn["saldo_btc"]
-            L.append(f"    Saldo spot: {sb:.8f} BTC "
-                     f"(≈ USD {sb * px_btc:,.2f})" if px_btc else
-                     f"    Saldo spot: {sb:.8f} BTC")
+            L.append(f"    Saldo spot: {sb:.8f} BTC"
+                     + (f" (≈ USD {sb * px_btc:,.2f})" if px_btc else ""))
         if bn.get("error"):
             L.append(f"    [!] Aviso API: {bn['error']}")
     else:
@@ -445,7 +453,8 @@ def reporte(cfg, med, fuente, red, px_btc, px_xmr, um, bn, esc) -> str:
     return "\n".join(L)
 
 
-def resumen_telegram(cfg, med, fuente, red, px_btc, px_xmr, um, bn, esc) -> str:
+def resumen_telegram(cfg, med, fuente, red, px_btc, px_xmr, um, bn, esc,
+                     zg=None) -> str:
     """Texto corto HTML para Telegram (el que verás en tu celular)."""
     def f8(x):
         return f"{x:.8f}"
@@ -481,8 +490,19 @@ def resumen_telegram(cfg, med, fuente, red, px_btc, px_xmr, um, bn, esc) -> str:
                  f"sin pagar ({pct:.1f}% del umbral)")
         if esc and esc[0]["btc_dia"] > 0:
             falta = max(um["umbral"] - um["payable"], 0.0)
-            L.append(f"⏱️ Payout a Binance en ~"
-                     f"{_fmt_dias(falta / esc[0]['btc_dia'])}")
+            if (esc[0]["hashrate"] or 0) < 100:
+                L.append("⏱️ Payout: NO FIABLE (hashrate en el suelo); "
+                         "al volver a minar baja a días")
+            else:
+                L.append(f"⏱️ Payout a Binance en ~"
+                         f"{_fmt_dias(falta / esc[0]['btc_dia'])}")
+    if zg:
+        L.append(f"🦔 ZergPool (respaldo): {zg['total']:.8f} BTC")
+    meta = meta_diez_dolares(esc)
+    if meta:
+        L.append(f"🎯 Meta $10/día: ~{meta['hs']:,.0f} H/s necesarios "
+                 f"(≈ {meta['pcs']:.0f} PCs como la tuya); HIDRA al "
+                 "máximo (admin) lo baja.")
     if bn and bn.get("saldo_btc") is not None and px_btc:
         L.append(f"🏦 Binance spot: <b>{f8(bn['saldo_btc'])} BTC</b> "
                  f"(≈ USD {bn['saldo_btc'] * px_btc:,.2f})")
@@ -509,31 +529,32 @@ def _enviar_tg(cfg: dict, texto: str) -> bool:
 # ---------------------------------------------------------------------------
 def enviar_prueba(cfg: dict, motivo: str = "", solo_tg: bool = False,
                   hashrate_forzado: float = 0.0) -> str:
-    """Ejecuta la prueba completa y envía el resumen a Telegram.
-    Devuelve el texto del reporte de consola (útil para logs)."""
+    """Ejecuta la prueba completa y envía el resumen a Telegram."""
     btc_addr = (cfg.get("BTC_PAYOUT_ADDRESS") or "").strip()
     with ThreadPoolExecutor(max_workers=6) as ex:
         f_px = ex.submit(precio_btc)
         f_xmr_px = ex.submit(precio_xmr)
         f_red = ex.submit(red_xmr)
         f_um = ex.submit(datos_unmineable, btc_addr)
+        f_zg = ex.submit(datos_zergpool, btc_addr)
         f_bn = ex.submit(datos_binance, cfg)
         if hashrate_forzado > 0:
             med, fuente = hashrate_forzado, "fijado a mano (--hashrate)"
         else:
             med, fuente = hashrate_medido()
-        px_btc, px_xmr, red, um, bn = (f_px.result(), f_xmr_px.result(),
-                                       f_red.result(), f_um.result(),
-                                       f_bn.result())
+        px_btc, px_xmr, red, um, zg, bn = (
+            f_px.result(), f_xmr_px.result(), f_red.result(), f_um.result(),
+            f_zg.result(), f_bn.result())
     fee = um.get("fee", 0.01) if um else 0.01
     esc = calcular_escenarios(med, fuente, cfg, red, px_btc, px_xmr, fee)
     if solo_tg:
         txt = resumen_telegram(cfg, med, fuente, red, px_btc, px_xmr,
-                               um, bn, esc)
+                               um, bn, esc, zg)
     else:
-        txt = reporte(cfg, med, fuente, red, px_btc, px_xmr, um, bn, esc)
-    _enviar_tg(cfg, resumen_telegram(cfg, med, fuente, red, px_btc, px_xmr,
-                                     um, bn, esc))
+        txt = reporte(cfg, med, fuente, red, px_btc, px_xmr, um, bn,
+                      esc, zg)
+    _enviar_tg(cfg, resumen_telegram(cfg, med, fuente, red, px_btc,
+                                     px_xmr, um, bn, esc, zg))
     # Guarda copia para comparar mañana
     try:
         outp = os.path.join(BASE, "data",
@@ -544,8 +565,8 @@ def enviar_prueba(cfg: dict, motivo: str = "", solo_tg: bool = False,
             json.dump({"ts": time.time(), "motivo": motivo,
                        "hashrate": med, "fuente": fuente,
                        "precio_btc": px_btc, "precio_xmr": px_xmr,
-                       "red_xmr": red, "unmineable": um, "binance": bn,
-                       "escenarios": esc}, f,
+                       "red_xmr": red, "unmineable": um, "zergpool": zg,
+                       "binance": bn, "escenarios": esc}, f,
                       indent=2, ensure_ascii=False, default=str)
     except Exception:
         pass
@@ -563,7 +584,6 @@ def main():
     ap.add_argument("--hashrate", type=float, default=0.0,
                     help="fijar hashrate en H/s (si no, usa el medido)")
     args = ap.parse_args()
-
     cfg = cargar_secrets()
     if not (cfg.get("BTC_PAYOUT_ADDRESS") or "").strip():
         print("No encontré BTC_PAYOUT_ADDRESS en .streamlit/secrets.toml — "

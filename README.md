@@ -294,6 +294,62 @@ GitHub → verifica dependencias → arranca el daemon minero → abre el
 dashboard. Y `DETENER_TODO.bat` para parar todo (el saldo del pool NO se
 pierde: el pool paga al cruzar el umbral).
 
+## 🚨 v3.8 DESBLOQUEO — pool zombi detectado y solventado (oct-2026)
+
+**Qué pasó el 23-24/oct/2026**: `rx.unmineable.com` (puertos 3333 y 443)
+quedó **ZOMBI**: aceptaba conexiones TCP pero NO respondía al protocolo
+stratum — xmrig conectaba, nunca recibía un job y el hashrate quedaba en
+0. El motor anterior elegía pool por latencia TCP (un zombi parece
+"rápido") y, con un solo objetivo (modo SOLO-BTC), el failover no podía
+rotar → **hashrate 0 para siempre**. Verificado en vivo con sondeo
+stratum: MoneroOcean y SupportXMR estaban vivos mientras unMineable no
+hablaba.
+
+**Qué hace diferente la v3.8**:
+
+| Cambio | Efecto |
+|---|---|
+| **Sonda stratum REAL** (`pools_salud.py`) | Handshake `mining.subscribe` de verdad: si el pool no responde se marca ZOMBI (20 min de cooldown persistido en `data/pool_salud.json`) |
+| Arranque solo entre pools VIVOS | El motor sondea TODOS los objetivos en paralelo y lanza el más rápido que hable stratum de verdad |
+| Nuevo objetivo `unmineable-ssl` | Mismo pool por TLS `stratum+ssl://rx.unmineable.com:443` (si el :3333 está caído o bloqueado por ISP/firewall, el :443 suele pasar). Con SOLO-BTC ahora hay 2 objetivos y el failover vuelve a rotar |
+| `saltar_a_pool_viva()` | Si el pool actual se pone zombi EN MARCHA (hashrate 0 >5 min con motor vivo), salta al primero que responda |
+| VIGÍA anti-hashrate-cero | 3 rondas (6 min) con motor vivo y 0 H/s → reparación + salto a pool vivo + aviso Telegram (antes la VIGÍA era muda ante el 0) |
+| `secrets.toml` se lee directo (tomllib) | El daemon ya no depende de que streamlit importe bien para ver tus claves |
+| **DIAGNOSTICO.bat / diagnostico.py** | Un doble clic: examina TODO (daemon, secrets, Defender, xmrig, pools con sondeo real, hidra), REPARA lo reparable (restaura xmrig, exclusiones, limpia pausas pegadas) y ARRANCA el daemon si está caído. Evidencia en `data/diagnostico_*.json` |
+
+**Si un día vuelve el hashrate 0**: doble clic en **DIAGNOSTICO.bat** →
+te dice en español qué pasó y casi siempre lo arregla solo. Si unMineable
+está caído, el bot re-sondea cada ronda y arranca solo en cuanto reviva
+(mientras tanto puedes pegar una `WALLET_XMR` en secrets para minar en
+MoneroOcean/SupportXMR, que pagan XMR).
+
+## 💰 v3.9 UTILIDADES — 7 pools y payout honesto (oct-2026)
+
+Mientras unMineable sigue inestable (zombi intermitente), la v3.9 le da al
+motor **salidas reales que pagan en BTC sin wallet Monero y sin registro**:
+
+| # | Pool | Pago | Nota |
+|---|---|---|---|
+| 1-2 | unMineable :3333 / SSL :443 | **BTC** | Tu canal principal; si revive se usa solo (prioridad) |
+| 3-4 | **ZergPool** `rx.mine.zergpool.com:5354` (+EU) | **BTC** | Familia Yiimp: usuario = tu dirección BTC, password `c=BTC,ID=worker`; sin registro, pago diario, umbral ~0.0005-0.001 BTC |
+| 5 | MoneroOcean | XMR | Requiere WALLET_XMR |
+| 6 | **Kryptex** `xmr.kryptex.network:7029` | XMR | Nuevo respaldo (formato `wallet/worker`, umbral bajo 0.01 XMR) |
+| 7 | SupportXMR | XMR | Requiere WALLET_XMR |
+
+El motor elige **solo pools VIVOS** (sondeo stratum real) y dentro de los
+vivos prioriza el orden del catálogo (BTC primero) y luego la latencia.
+Si unMineable está zombi, ahora en modo SOLO-BTC hay **2 canales BTC más**
+(ZergPool TCP/EU) → el hashrate ya no se queda en 0 por falta de destino.
+
+**Payout honesto**: la estimación "payout en X días" es
+`(umbral − acumulado) ÷ BTC/día medido AHORA`. Si tu hashrate medido está
+en el suelo (pool zombi, muestra de arranque), el número se dispara a
+"años" — la v3.9 lo marca **NO FIABLE** en vez de asustar, y muestra la
+sección **[2b] TU REGLA: USD 10/DÍA** con los H/s reales que necesitas y
+los caminos para lograrlo (HIDRA al máximo, más PCs, hardware mayor).
+ZergPool también aparece en `probar_ganancias` y `recolectar_pool`.
+
+
 ## 🐲 LA HIDRA — 5 cabezas de agresividad (nuevo en v3.7)
 
 La hidra es el sistema que **recupera la agresividad perdida** y blinda el
@@ -334,6 +390,7 @@ cuarentenado.
 | `huge pages` incompletas | Mismo remedio: administrador. Si sigue, reinicia Windows una vez (libera memoria fragmentada) |
 | Aviso "Hashrate limitado" en Telegram | El daemon arrancó sin administrador. Ciérralo y reabre con `CORRER_BOT.bat` (la auto-elevación de v3.6 lo evita) |
 | **xmrig.exe no ejecuta / desaparece aunque excluí la carpeta** (v3.7) | Defender cuarentena el .exe al EJECUTARLO aunque la carpeta esté excluida: faltan la exclusión del proceso y del .exe exacto. La HIDRA las agrega sola al arrancar (ESCUDO) y lo restaura (MÉDICO). Manual: `defender_fix.ps1` como admin |
+| **Hashrate 0 de repente, el bot “no hace nada”** (v3.8) | Doble clic en **DIAGNOSTICO.bat**: te dice qué pasó (daemon caído, pool ZOMBI, xmrig borrado, pausa pegada…) y lo arregla solo. Causa típica: unMineable zombi — el motor v3.8 lo detecta, lo salta y mina en el pool vivo más rápido |
 
 ## 🔗 Infraestructura y repos de referencia
 

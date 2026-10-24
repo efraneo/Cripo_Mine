@@ -1,31 +1,20 @@
 """
-hidra_minera.py — LA HIDRA v3.7: motor de agresividad restaurada
-=================================================================
-La hidra es el sistema multi-cabeza que vigila, repara y optimiza el
-minado 24/7. 5 cabezas trabajando en paralelo:
-
-  CABEZA 1 · FUEGO   → configura xmrig a MÁXIMO: hilos óptimos según tu
-                       CPU, huge pages + huge-pages-jit (boost Ryzen),
-                       memory-pool persistente, prioridad y randomx fast.
-  CABEZA 2 · ESCUDO  → anti-Windows-Defender: exclusiones CORRECTAS
-                       (carpeta + ruta exacta del .exe + proceso), porque
-                       la de carpeta sola NO evita la cuarentena.
-  CABEZA 3 · MÉDICO  → resucita xmrig.exe: lo restaura de la cuarentena
-                       (MpCmdRun -Restore) o lo re-descarga solo.
-  CABEZA 4 · VIGÍA   → vigila el hashrate 24/7 contra el RÉCORD; si cae
-                       más de HIDRA_CAIDA_PCT en varias rondas →
-                       diagnostica (¿Defender? ¿binario?) y reoptimiza.
-  CABEZA 5 · CASA    → memoria: récord, acciones y estado de cada cabeza
-                       (data/hidra_state.json → /hidra y dashboard).
-
-Secrets nuevos (config.py):
-    HIDRA_ACTIVA     → true = las 5 cabezas despiertas (default true)
-    HIDRA_CAIDA_PCT  → % de caída del hashrate que despierta la VIGÍA (35)
-    HIDRA_DEFENDER   → true = el ESCUDO toca Defender automáticamente (true)
-
-Todo es best-effort y NUNCA rompe el minado: si algo falla, se registra
-y se sigue. Diseñado para Windows (Defender/PowerShell) y degrade a
-no-op limpio en Linux/macOS.
+hidra_minera.py — LA HIDRA v3.8: motor de agresividad restaurada
+================================================================
+5 cabezas en paralelo, best-effort, NUNCA rompen el minado:
+  FUEGO   → config xmrig a MÁXIMO (hilos óptimos, huge pages+jit,
+            memory-pool, prioridad, randomx fast + mod MSR).
+  ESCUDO  → anti-Defender: exclusiones CORRECTAS (carpeta + .exe
+            exacto + proceso xmrig.exe; la carpeta sola NO basta).
+  MÉDICO  → resucita xmrig.exe: cuarentena (MpCmdRun) o re-descarga.
+  VIGÍA   → vigila el hashrate vs RÉCORD; cae >HIDRA_CAIDA_PCT en
+            varias rondas → diagnostica y reoptimiza. v3.8: también
+            reacciona a hashrate CERO sostenido (pool zombi) saltando
+            a un pool vivo (engine.relanzar ya lo hace).
+  CASA    → memoria compartida: data/hidra_state.json → /hidra y
+            dashboard.
+Secrets: HIDRA_ACTIVA(true), HIDRA_CAIDA_PCT(35), HIDRA_DEFENDER(true).
+Diseñada para Windows y degrada a no-op limpio en Linux/macOS.
 """
 import json
 import os
@@ -346,6 +335,7 @@ class Vigia(threading.Thread):
         self.on_reparar = on_reparar or (lambda motivo: None)
         self._stop = threading.Event()
         self._caidas = 0
+        self._ceros = 0               # v3.8: rondas consecutivas con h=0
         self._arranque = time.time()
 
     def stop(self):
@@ -365,6 +355,18 @@ class Vigia(threading.Thread):
         if time.time() - self._arranque < MARGEN_ARRANQUE:
             return                              # deja arrancar al minero
         h = float(self.get_hashrate() or 0)
+        # v3.8: motor vivo + hashrate CERO sostenido → ACTUAR (antes la
+        # VIGÍA ignoraba h=0 y quedaba muda ante un pool zombi).
+        if h <= 0:
+            if self.get_running():
+                self._ceros += 1
+                if self._ceros >= CICLOS_CAIDA:
+                    self._ceros = 0
+                    self.on_reparar(
+                        f"hashrate CERO durante "
+                        f"{CICLOS_CAIDA * INTERVALO_VIGIA // 60} min con "
+                        f"el motor vivo → salto a pool vivo")
+            return
         estado = _cargar_estado()
         best = float(estado.get("best_hashrate") or 0)
         if h > best:

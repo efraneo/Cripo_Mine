@@ -1,19 +1,19 @@
 @echo off
 REM ============================================================
-REM  CORRER_BOT.bat - Cripo_Mine (Windows)  [v3.7 - LA HIDRA]
+REM  CORRER_BOT.bat - Cripo_Mine (Windows)  [v3.9 UTILIDADES]
 REM  Doble clic = bot minando + pruebas + dashboard:
 REM    0) PIDE ADMINISTRADOR SOLO (necesario para el mod MSR:
 REM       sin el MSR el hashrate cae a menos de la mitad)
 REM    1) sincroniza con GitHub (opcional; si falla sigue)
 REM    2) verifica dependencias (pip install)
 REM    3) arranca el DAEMON minero 24/7 (ventana propia)
-REM       + DESPIERTA LA HIDRA (5 cabezas): configura xmrig a
-REM         maximo, blinda Defender (carpeta + .exe + proceso),
-REM         resucita xmrig.exe si el antivirus lo borra y
-REM         vigila el hashrate contra tu record 24/7
+REM       + 7 POOLS (v3.9): unMineable + ZergPool pagan en BTC
+REM         directo a Binance; MoneroOcean/Kryptex/SupportXMR de
+REM         respaldo. Solo mina en pools VIVOS (sondeo stratum real)
+REM         + HIDRA (5 cabezas)
 REM    4) abre el DASHBOARD en tu navegador (ventana propia)
-REM  Ademas, al arrancar, el bot envia a tu Telegram la
-REM  PRUEBA DE GANANCIAS (saldo del pool + BTC/dia proyectado).
+REM  ¿Hashrate 0 o "no hace nada"? -> doble clic DIAGNOSTICO.bat
+REM  (examina todo, repara lo reparable y arranca el daemon)
 REM  Comandos Telegram: /estado /ganancias /hidra /apagar
 REM  Para DETENER todo: doble clic en DETENER_TODO.bat
 REM ============================================================
@@ -30,7 +30,7 @@ cd /d "%~dp0"
 title CORRER BOT - Cripo_Mine
 echo.
 echo   ==============================================
-echo    CORRER EL BOT  -  Cripo_Mine v3.7 LA HIDRA
+echo    CORRER EL BOT  -  Cripo_Mine v3.9 UTILIDADES
 echo    Carpeta: %CD%
 echo   ==============================================
 echo.
@@ -63,9 +63,10 @@ echo     - Tu Telegram                   = PRUEBA DE GANANCIAS
 echo       (y /ganancias /hidra /estado /apagar cuando quieras)
 echo.
 echo    LA HIDRA esta despierta: config optima + escudo Defender
-echo    + medico de xmrig.exe + vigia de hashrate (5 cabezas).
-echo    Si xmrig.exe aparece bloqueado: defender_fix.ps1
-echo    (clic derecho > Ejecutar con PowerShell).
+echo    + medico de xmrig.exe + vigia anti-hashrate-0.
+echo    v3.9: 7 pools; ZergPool paga en BTC directo si unMineable
+echo    falla. Payout estimado NO fiable si el hashrate esta en 0.
+echo    ¿Hashrate 0? -> doble clic en DIAGNOSTICO.bat
 echo.
 echo    Para DETENER TODO: doble clic en DETENER_TODO.bat
 echo   ==============================================

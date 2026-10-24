@@ -50,6 +50,7 @@ V3.7 — LA HIDRA (agresividad restaurada, 5 cabezas):
                              de Windows Defender para xmrig (true)
 """
 import os
+import sys
 import tempfile
 
 # ---------------------------------------------------------------------------
@@ -132,19 +133,42 @@ DEFAULTS = {
 
 def load_secrets() -> dict:
     """Une los secrets de Streamlit con los valores por defecto, sin explotar
-    si no existe secrets.toml (útil también fuera de Streamlit)."""
+    si no existe secrets.toml. v3.8: si streamlit no está instalado (o su
+    import falla), lee .streamlit/secrets.toml DIRECTO con tomllib — el
+    daemon ya no depende de que streamlit cargue bien para ver tus claves."""
     cfg = dict(DEFAULTS)
+    sec = {}
+    # 1) lectura directa del archivo (siempre; no depende de streamlit)
+    path = os.path.join(BASE_DIR, ".streamlit", "secrets.toml")
+    if os.path.exists(path):
+        try:
+            if sys.version_info >= (3, 11):
+                import tomllib
+                with open(path, "rb") as f:
+                    sec = tomllib.load(f)
+            else:
+                try:
+                    import tomli as tomllib
+                    with open(path, "rb") as f:
+                        sec = tomllib.load(f)
+                except Exception:
+                    sec = {}
+        except Exception:
+            sec = {}
+    # 2) overlay de st.secrets (Streamlit Cloud u otra ruta activa)
     try:
         import streamlit as st
         try:
-            sec = dict(st.secrets)  # type: ignore[attr-defined]
+            _st_sec = dict(st.secrets)  # type: ignore[attr-defined]
         except Exception:
-            sec = {}
-        for k, v in sec.items():
-            if k in DEFAULTS:
-                cfg[k] = v
+            _st_sec = {}
+        for k, v in _st_sec.items():
+            sec[k] = v
     except Exception:
         pass
+    for k, v in (sec or {}).items():
+        if k in DEFAULTS:
+            cfg[k] = v
     # Tipos numéricos seguros
     try:
         cfg["CPU_THREADS"] = max(1, int(cfg["CPU_THREADS"]))

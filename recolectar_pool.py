@@ -42,6 +42,8 @@ import requests  # noqa: E402
 
 UA = {"User-Agent": "btc-miner-studio-recolecta/3.2"}
 UM_API = "https://api.unmineable.com/v4/address/{addr}?coin=BTC"
+ZERG_API = ("https://api.zergpool.com:8080/api/wallet?address={addr}"
+            "&currency=BTC")
 MO_API = "https://api.moneroocean.stream/miner/{addr}/stats"
 MP_ADDR_API = "https://mempool.space/api/address/{addr}"
 MP_PRICE_API = "https://mempool.space/api/v1/prices"
@@ -112,6 +114,25 @@ def datos_unmineable(addr: str) -> dict:
         "error_pago": bool((d.get("err_flags") or {}).get("payment_error")),
         "pagos_previos": len(pagos),
     }
+
+
+def datos_zergpool(addr: str) -> dict:
+    """Saldo en ZergPool (respaldo BTC de v3.9, familia Yiimp)."""
+    if not addr:
+        return {}
+    d = _get_json(ZERG_API.format(addr=addr), timeout=8) or {}
+
+    def _f(k):
+        try:
+            return float(d.get(k, 0.0) or 0.0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    bal, unsold = _f("balance"), _f("unsold")
+    if bal <= 0 and unsold <= 0:
+        return {}
+    return {"pool": "ZergPool", "balance": bal, "pendiente": unsold,
+            "total": bal + unsold}
 
 
 def datos_moneroocean(wallet: str) -> dict:
@@ -204,7 +225,7 @@ def _usd(btc: float, px: float) -> str:
     return f"≈ USD {btc * px:,.2f}" if px and btc else ""
 
 
-def reporte(cfg: dict, um, mo, oc, bn, px: float) -> str:
+def reporte(cfg: dict, um, mo, oc, bn, px: float, zg=None) -> str:
     L = []
     btc_addr = (cfg.get("BTC_PAYOUT_ADDRESS") or "").strip()
     L.append("=" * 62)
@@ -245,9 +266,20 @@ def reporte(cfg: dict, um, mo, oc, bn, px: float) -> str:
         L.append("    Sin datos (API no respondió o no hay "
                  "BTC_PAYOUT_ADDRESS).")
 
-    # --- 2) Saldo on-chain --------------------------------------------------
+    # --- 2) ZergPool (respaldo BTC) -----------------------------------------
     L.append("")
-    L.append("[2] Cadena Bitcoin (saldo ya pagado a tu dirección)")
+    L.append("[2] ZergPool (respaldo BTC, v3.9)")
+    if zg:
+        L.append(f"    Balance sin pagar : {zg['total']:.8f} BTC "
+                 f"{_usd(zg['total'], px)}")
+        L.append("    ➜ Se paga solo en BTC (umbral ~0.0005-0.001); NO se "
+                 "pierde al apagar.")
+    else:
+        L.append("    Sin saldo aún (o el pool no respondió).")
+
+    # --- 3) Saldo on-chain --------------------------------------------------
+    L.append("")
+    L.append("[3] Cadena Bitcoin (saldo ya pagado a tu dirección)")
     if oc and oc.get("sat", 0) > 0:
         sat = oc["sat"]
         L.append(f"    Saldo on-chain    : {sat / 1e8:.8f} BTC "
@@ -260,9 +292,9 @@ def reporte(cfg: dict, um, mo, oc, bn, px: float) -> str:
     else:
         L.append("    Sin datos de mempool.space (o sin dirección).")
 
-    # --- 3) MoneroOcean -----------------------------------------------------
+    # --- 4) MoneroOcean -----------------------------------------------------
     L.append("")
-    L.append("[3] MoneroOcean (paga en XMR)")
+    L.append("[4] MoneroOcean (paga en XMR)")
     if mo:
         L.append(f"    Pendiente         : {mo['due_xmr']:.6f} XMR "
                  f"(histórico pagado {mo['paid_xmr']:.6f} XMR)")
@@ -277,9 +309,9 @@ def reporte(cfg: dict, um, mo, oc, bn, px: float) -> str:
     else:
         L.append("    Sin datos (no hay WALLET_XMR o el pool no respondió).")
 
-    # --- 4) Binance ----------------------------------------------------------
+    # --- 5) Binance ----------------------------------------------------------
     L.append("")
-    L.append("[4] Binance (destino del dinero)")
+    L.append("[5] Binance (destino del dinero)")
     if bn and bn.get("error") == "sin-claves":
         L.append("    Sin claves API: mira la dirección a mano en "
                  "Binance → Cripto → Depositar → BTC → red Bitcoin.")
@@ -312,7 +344,7 @@ def reporte(cfg: dict, um, mo, oc, bn, px: float) -> str:
     return "\n".join(L)
 
 
-def resumen_telegram(cfg: dict, um, mo, oc, bn, px: float):
+def resumen_telegram(cfg: dict, um, mo, oc, bn, px: float, zg=None):
     """Manda el resumen corto a Telegram (si está configurado)."""
     try:
         import telegram_bot as tg
@@ -331,6 +363,8 @@ def resumen_telegram(cfg: dict, um, mo, oc, bn, px: float):
         if mo:
             L.append(f"MoneroOcean: <b>{mo['due_xmr']:.6f} XMR</b> "
                      "(van a tu wallet Monero, Binance no acepta XMR)")
+        if zg:
+            L.append(f"ZergPool (respaldo): <b>{zg['total']:.8f} BTC</b>")
         if bn and bn.get("saldo_btc") is not None:
             L.append(f"Binance spot: <b>{bn['saldo_btc']:.8f} BTC</b>")
         L.append("Para apagar todo: DETENER_TODO.bat o /apagar")
@@ -356,20 +390,22 @@ def main():
             sys.exit(1)
 
     print("Consultando pools, cadena y Binance (en paralelo)…")
-    with ThreadPoolExecutor(max_workers=5) as ex:
+    with ThreadPoolExecutor(max_workers=6) as ex:
         f_um = ex.submit(datos_unmineable, btc_addr)
+        f_zg = ex.submit(datos_zergpool, btc_addr)
         f_oc = ex.submit(datos_onchain, btc_addr)
         f_mo = ex.submit(datos_moneroocean,
                          (cfg.get("WALLET_XMR") or "").strip())
         f_bn = ex.submit(datos_binance, cfg)
         f_px = ex.submit(precio_btc)
-        um, oc, mo, bn, px = (f_um.result(), f_oc.result(), f_mo.result(),
-                              f_bn.result(), f_px.result())
+        um, zg, oc, mo, bn, px = (f_um.result(), f_zg.result(),
+                                  f_oc.result(), f_mo.result(),
+                                  f_bn.result(), f_px.result())
 
-    txt = reporte(cfg, um, mo, oc, bn, px)
+    txt = reporte(cfg, um, mo, oc, bn, px, zg)
     print(txt)
     if not args.sin_tg:
-        resumen_telegram(cfg, um, mo, oc, bn, px)
+        resumen_telegram(cfg, um, mo, oc, bn, px, zg)
     # Guarda una copia para referencia
     try:
         outp = os.path.join(BASE, "data", "recolecta_%s.json" %
@@ -377,8 +413,9 @@ def main():
         os.makedirs(os.path.dirname(outp), exist_ok=True)
         with open(outp, "w", encoding="utf-8") as f:
             json.dump({"ts": time.time(), "precio_btc": px,
-                       "unmineable": um, "onchain": oc, "moneroocean": mo,
-                       "binance": bn}, f, indent=2, ensure_ascii=False)
+                       "unmineable": um, "zergpool": zg, "onchain": oc,
+                       "moneroocean": mo, "binance": bn},
+                      f, indent=2, ensure_ascii=False)
         print(f"Copia guardada en: {outp}")
     except Exception:
         pass

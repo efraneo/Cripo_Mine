@@ -1,25 +1,11 @@
 """
 aggressive_engine.py — MOTOR AGRESIVO multi-pool con failover automático
 ========================================================================
-La "intervención" sobre el minero original: en lugar de hashes SHA-256 de
-BTC con CPU (probabilidad de bloque ≈ 0, la red corre a cientos de EH/s),
-el motor rota objetivos RandomX que SÍ retribuyen el hash de CPU:
-
-  1) unMineable  (rx/0) → mina RandomX y PAGA EN BTC directo a tu dirección
-     de depósito de Binance (formato user: "BTC:<dirección>.<worker>")
-  2) MoneroOcean (auto) → pool con auto-cambio de algoritmo (fork xmrig-MO,
-     13+ algos según rentabilidad del momento); paga en XMR a tu wallet
-  3) SupportXMR  (rx/0) → pool veterano de Monero como respaldo (paga XMR)
-
-Funciones clave:
-  • Descarga automática del binario XMRig (fork MO v6.26.0-mo5 precompilado
-    desde github.com/MoneroOcean/xmrig_setup; fallback: xmrig oficial 6.26.0
-    estático). No necesitas instalar nada a mano.
-  • FAILOVER: si no hay shares aceptados en FAILOVER_MINUTES, si el proceso
-    muere repetidamente o si el pool no responde → salta al siguiente
-    objetivo y registra el motivo.
-  • Obedece data/control.json: pausa térmica/manual, cambio forzado, hilos.
-  • Sonda de latencia: elige el pool con mejor ping al arrancar.
+v3.9 UTILIDADES: 7 objetivos; primero los que pagan BTC directo a
+Binance (unMineable + ZergPool sin registro) y respaldo XMR. Selección
+por SALUD REAL (handshake stratum vía pools_salud): un ZOMBI (TCP ok,
+sin jobs — unMineable oct-2026) se marca y se salta a un pool vivo; la
+VIGÍA reacciona al hashrate 0. XMRig se descarga solo (MO→oficial).
 """
 import json
 import os
@@ -35,30 +21,24 @@ import requests
 
 import control
 import hidra_minera
+import pools_salud
 from config import BASE_DIR, BIN_DIR
 from miner_manager import ExternalMiner
 
 UA = {"User-Agent": "btc-miner-studio-agresivo/2.0"}
-DL_TIMEOUT = (10, 300)          # (conexión, lectura) para descargas grandes
+DL_TIMEOUT = (10, 300)          # descargas grandes
 
-# URLs de descarga (verificadas 2026-10):
-#   fork MO con auto-switching: github.com/MoneroOcean/xmrig_setup (v6.26.0-mo5)
-#   xmrig oficial estático:     github.com/xmrig/xmrig/releases (v6.26.0)
-MO_LINUX = ("https://github.com/MoneroOcean/xmrig_setup/raw/master/"
-            "xmrig.tar.gz")
-MO_WINDOWS = ("https://github.com/MoneroOcean/xmrig_setup/raw/master/"
-              "xmrig.zip")
-OFFICIAL_LINUX = ("https://github.com/xmrig/xmrig/releases/download/v6.26.0/"
-                  "xmrig-6.26.0-linux-static-x64.tar.gz")
+# URLs de descarga verificadas 2026-10: fork MO v6.26.0-mo5 + oficial v6.26.0
+MO_LINUX = "https://github.com/MoneroOcean/xmrig_setup/raw/master/xmrig.tar.gz"
+MO_WINDOWS = "https://github.com/MoneroOcean/xmrig_setup/raw/master/xmrig.zip"
+OFFICIAL_LINUX = ("https://github.com/xmrig/xmrig/releases/download/"
+                  "v6.26.0/xmrig-6.26.0-linux-static-x64.tar.gz")
 OFFICIAL_WINDOWS = ("https://github.com/xmrig/xmrig/releases/download/"
                     "v6.26.0/xmrig-6.26.0-windows-x64.zip")
 
 STATE_FILE = os.path.join(BASE_DIR, "data", "engine_state.json")
 
-
-# ---------------------------------------------------------------------------
-# Catálogo de objetivos agresivos
-# ---------------------------------------------------------------------------
+# Catálogo v3.9: BTC directo primero, XMR de respaldo (requiere WALLET_XMR)
 def _user_unmineable(cfg, worker):
     addr = (cfg.get("BTC_PAYOUT_ADDRESS") or "").strip()
     if not addr:
@@ -67,55 +47,60 @@ def _user_unmineable(cfg, worker):
     return f"BTC:{addr}.{(worker or 'cpu01').strip() or 'cpu01'}"
 
 
+def _user_btc_addr(cfg, worker):
+    """ZergPool (familia Yiimp): usuario = tu dirección BTC tal cual."""
+    addr = (cfg.get("BTC_PAYOUT_ADDRESS") or "").strip()
+    if not addr:
+        raise ValueError("Falta BTC_PAYOUT_ADDRESS (ZergPool paga en BTC "
+                         "directo a tu Binance)")
+    return addr
+
+
+def _pass_zerg(cfg, worker):
+    """Password Yiimp: c=moneda de pago, ID=worker para estadísticas."""
+    return f"c=BTC,ID={(worker or 'cpu01').strip() or 'cpu01'}"
+
+
 def _user_wallet(cfg, worker):
     w = (cfg.get("WALLET_XMR") or "").strip()
     if not w:
         raise ValueError("Falta WALLET_XMR (wallet Monero para "
-                         "MoneroOcean/SupportXMR)")
+                         "MoneroOcean/Kryptex/SupportXMR)")
     return w
 
 
+def _user_kryptex(cfg, worker):
+    """Kryptex usa formato wallet/worker."""
+    return f"{_user_wallet(cfg, worker)}/{(worker or 'cpu01') or 'cpu01'}"
+
+
+def _t(id_, nombre, url, algo, pago, user_fn, pass_fn=None):
+    return {"id": id_, "nombre": nombre, "url": url, "algo": algo,
+            "pago": pago, "user_fn": user_fn, "pass_fn": pass_fn}
+
+
 TARGETS = [
-    {
-        "id": "unmineable",
-        "nombre": "unMineable (paga en BTC directo a Binance)",
-        "url": "rx.unmineable.com:3333",
-        "algo": "rx/0",
-        "pago": "BTC",
-        "user_fn": _user_unmineable,
-        "nota": "Endpoint RandomX oficial (soporte unMineable 2026: "
-                "rx.unmineable.com:3333; alternativa SSL stratum+ssl://rx." 
-                "unmineable.com:443). Formato user: BTC:<dirección>.<worker> "
-                "o alias de la sección Addresses. Umbral de pago real lo da "
-                "la API (~0.00075 BTC) y puedes ajustarlo en unmineable.com.",
-    },
-    {
-        "id": "moneroocean",
-        "nombre": "MoneroOcean (auto-cambio de algoritmo, paga XMR)",
-        "url": "gulf.moneroocean.stream:10128",
-        "algo": "auto",
-        "pago": "XMR",
-        "user_fn": _user_wallet,
-        "nota": "Con el fork xmrig-MO el pool/minero prueba 13+ algoritmos y "
-                "se queda con el más rentable para tu CPU. Umbral bajo "
-                "(0.001 XMR). Paga a tu wallet Monero.",
-    },
-    {
-        "id": "supportxmr",
-        "nombre": "SupportXMR (pool veterano de respaldo, paga XMR)",
-        "url": "pool.supportxmr.com:3333",
-        "algo": "rx/0",
-        "pago": "XMR",
-        "user_fn": _user_wallet,
-        "nota": "Pool Monero estable desde 2016, vardiff bajo: good para "
-                "CPU pequeñas. PPLNS, fee 0.6%.",
-    },
+    _t("unmineable", "unMineable (paga en BTC directo a Binance)",
+       "rx.unmineable.com:3333", "rx/0", "BTC", _user_unmineable),
+    _t("unmineable-ssl", "unMineable SSL (mismo pool, cifrado :443)",
+       "stratum+ssl://rx.unmineable.com:443", "rx/0", "BTC",
+       _user_unmineable),
+    _t("zergpool", "ZergPool (BTC directo a Binance, sin registro)",
+       "rx.mine.zergpool.com:5354", "rx/0", "BTC", _user_btc_addr,
+       _pass_zerg),
+    _t("zergpool-eu", "ZergPool EU (BTC directo, sin registro)",
+       "rx.eu.mine.zergpool.com:5354", "rx/0", "BTC", _user_btc_addr,
+       _pass_zerg),
+    _t("moneroocean", "MoneroOcean (auto-cambio de algoritmo, paga XMR)",
+       "gulf.moneroocean.stream:10128", "auto", "XMR", _user_wallet),
+    _t("kryptex", "Kryptex XMR (respaldo, paga XMR, umbral bajo)",
+       "xmr.kryptex.network:7029", "rx/0", "XMR", _user_kryptex),
+    _t("supportxmr", "SupportXMR (respaldo veterano, paga XMR)",
+       "pool.supportxmr.com:3333", "rx/0", "XMR", _user_wallet),
 ]
 
 
-# ---------------------------------------------------------------------------
 # Utilidades
-# ---------------------------------------------------------------------------
 def probe_pool(url: str, timeout: float = 3.0):
     """Latencia TCP al pool en ms (None si no responde)."""
     host, _, port = url.partition(":")
@@ -153,7 +138,7 @@ def _find_binary(root: str) -> str:
                     except Exception:
                         pass
                 return p
-        # límite de profundidad razonable
+        # límite de profundidad
         if dirpath.count(os.sep) - root.count(os.sep) > 4:
             break
     return ""
@@ -226,9 +211,8 @@ def ensure_binary(cfg, on_event) -> str:
         on_event(f"No se pudo descargar XMRig: {e}", "error")
 
     raise FileNotFoundError(
-        "Sin binario XMRig. Descárgalo manualmente de github.com/xmrig/xmrig"
-        "/releases y pon la ruta en EXTERNAL_MINER_PATH (secrets). En macOS: "
-        "`brew install xmrig`.")
+        "Sin binario XMRig. Descárgalo de github.com/xmrig/xmrig/releases y "
+        "pon la ruta en EXTERNAL_MINER_PATH (secrets). macOS: brew install.")
 
 
 # ---------------------------------------------------------------------------
@@ -242,8 +226,7 @@ class AggressiveEngine:
         self.on_event = on_event or (lambda m, l="info": None)
         self.on_share = on_share or (lambda j, n, s: None)
         self.on_stats = on_stats or (lambda s: None)
-        # HIDRA (singleton compartido con run_miner; si nadie la creó aún,
-        # la levanta el motor con su propio canal de eventos)
+        # HIDRA singleton (si nadie la creó aún, la levanta el motor)
         self.hidra = hidra_minera.get_hidra() or hidra_minera.init_hidra(
             cfg, on_event=self.on_event)
 
@@ -258,6 +241,7 @@ class AggressiveEngine:
         self._restarts = 0
         self._last_shares_seen = -1
         self._last_share_ts = 0.0
+        self._ultimo_salto = 0.0      # v3.8: anti-bucle al saltar de pool
         self.failover_min = self._num(cfg.get("FAILOVER_MINUTES"), 12, 1, 240)
         self.rotate_min = self._num(cfg.get("ROTATE_MINUTES"), 0, 0, 1440)
 
@@ -288,31 +272,57 @@ class AggressiveEngine:
 
     def _make_miner(self, target, threads) -> ExternalMiner:
         user = target["user_fn"](self.cfg, "cpu01")
+        pass_fn = target.get("pass_fn") or (lambda c, w: "x")
         return ExternalMiner(
             binary_path=self.binary_path,
             extra_args="--no-color --donate-level=1",
-            pool_url=target["url"], user=user, password="x",
+            pool_url=target["url"], user=user,
+            password=pass_fn(self.cfg, "cpu01"),
             threads=threads,
             on_event=self.on_event, on_share=self._wrap_share(),
             on_stats=self.on_stats,
             optima=self.hidra.optima_actual() if self.hidra.activa else None)
 
     def relanzar(self, motivo: str = "hidra reoptimiza"):
-        """Relanza el objetivo actual con la config óptima (lo usa la
-        CABEZA VIGÍA tras reparar una caída de hashrate)."""
+        """Relanza el objetivo actual (lo usa la VIGÍA). v3.8: si el pool
+        actual está ZOMBI salta al primero que responda stratum real."""
         if not self.current_target:
             return
+        if pools_salud.probe_salud(self.current_target["url"],
+                                   force=True) is None:
+            if self.saltar_a_pool_viva(motivo + " (pool zombi)"):
+                return
         threads = control.read().get("threads") or self.cfg.get(
             "CPU_THREADS", 2)
         self._launch(self.current_target, motivo, int(threads))
+
+    def saltar_a_pool_viva(self, motivo: str) -> bool:
+        """Salta al primer objetivo distinto del actual con stratum real
+        (prioridad al orden del catálogo: BTC antes que XMR)."""
+        cur = (self.current_target or {}).get("id")
+        avail = [t for t in self.targets_available() if t["id"] != cur]
+        if not avail:
+            return False
+        orden = [t["id"] for t in TARGETS]
+        salud = pools_salud.sondear_muchos([t["url"] for t in avail])
+        vivos = sorted(((salud[t["url"]], t) for t in avail
+                        if salud.get(t["url"]) is not None),
+                       key=lambda x: (orden.index(x[1]["id"]), x[0]))
+        if not vivos:
+            self.on_event("Ningún pool alternativo responde stratum; me "
+                          "quedo en el actual reintentando", "warn")
+            return False
+        threads = control.read().get("threads") or self.cfg.get(
+            "CPU_THREADS", 2)
+        self._launch(vivos[0][1], motivo, int(threads))
+        return True
 
     # ------------------------------------------------------------------
     def start(self):
         if self.is_running():
             self.on_event("El motor agresivo ya está en marcha", "warn")
             return
-        # v3.7 HIDRA: FUEGO+ESCUDO+MÉDICO despiertan ANTES de lanzar xmrig
-        # (exclusiones de Defender correctas + binario sano + config óptima)
+        # v3.7 HIDRA (FUEGO+ESCUDO+MÉDICO) despierta ANTES de lanzar xmrig
         try:
             if self.hidra.activa:
                 self.hidra.inicial()
@@ -324,17 +334,26 @@ class AggressiveEngine:
             raise ValueError("No hay objetivos configurables: pon "
                              "BTC_PAYOUT_ADDRESS (unMineable→BTC) o "
                              "WALLET_XMR (MoneroOcean/SupportXMR) en secrets")
-        # elegir por latencia (los que responden primero)
-        latencies = []
-        for t in available:
-            ms = probe_pool(t["url"]) or 9999.0
-            latencies.append((ms, t["id"]))
-        latencies.sort()
-        first = next(t for t in TARGETS if t["id"] == latencies[0][1])
+        # Elegir por SALUD REAL (un zombi responde TCP pero JAMÁS manda
+        # jobs). Prioridad al orden del catálogo y luego a la latencia.
+        orden = [t["id"] for t in TARGETS]
+        salud = pools_salud.sondear_muchos([t["url"] for t in available])
+        vivos = sorted(((salud[t["url"]], t) for t in available
+                        if salud.get(t["url"]) is not None),
+                       key=lambda x: (orden.index(x[1]["id"]), x[0]))
+        if vivos:
+            first = vivos[0][1]
+            motivo = (f"arranque inicial (pool VIVO, stratum "
+                      f"{vivos[0][0]:.0f} ms)")
+        else:
+            first = available[0]
+            motivo = "arranque inicial (sin pool vivo; reintento solo)"
+            self.on_event("AVISO: NINGÚN pool responde stratum ahora mismo "
+                          "(¿unMineable caído?). Arranco igual y re-sondeo "
+                          "automáticamente cada ronda.", "warn")
         threads = control.read().get("threads") or self.cfg.get(
             "CPU_THREADS", 2)
-        self._launch(first, "arranque inicial (mejor latencia "
-                            f"{latencies[0][0]:.0f} ms)", int(threads))
+        self._launch(first, motivo, int(threads))
         self._stop.clear()
         self._monitor = threading.Thread(target=self._monitor_loop,
                                          daemon=True, name="agro-monitor")
@@ -342,9 +361,8 @@ class AggressiveEngine:
         self._save_state()
 
     def _arrancar_minero(self, target, threads: int) -> bool:
-        """Lanza el minero; si el antivirus/Defender lo impide, la HIDRA
-        repara (excluir + restaurar + re-descargar) y reintenta UNA vez.
-        Devuelve True si quedó corriendo (v3.7: nunca crashear el daemon)."""
+        """Lanza el minero; si el antivirus lo impide, la HIDRA repara y
+        reintenta UNA vez (nunca crashear el daemon)."""
         for intento in (1, 2):
             try:
                 self.miner.start()
@@ -397,8 +415,18 @@ class AggressiveEngine:
     def switch_next(self, reason: str):
         avail = self.targets_available()
         if len(avail) < 2:
-            self.on_event("Solo hay un objetivo disponible; no puedo rotar "
-                          "(configura WALLET_XMR para tener más)", "warn")
+            # 1 objetivo: si RECUPERÓ el stratum relanzo; si no, aviso.
+            cur_url = (self.current_target or {}).get("url", "")
+            if cur_url and pools_salud.probe_salud(
+                    cur_url, force=True) is not None:
+                threads = control.read().get("threads") or \
+                    self.cfg.get("CPU_THREADS", 2)
+                self._launch(self.current_target,
+                             "pool actual RECUPERADO", int(threads))
+                return
+            self.on_event("Solo hay un objetivo y sigue sin responder "
+                          "stratum; reintentaré solo (con WALLET_XMR en "
+                          "secrets tendrías más respaldo)", "warn")
             return
         cur = (self.current_target or {}).get("id")
         order = [t["id"] for t in TARGETS]
@@ -465,8 +493,7 @@ class AggressiveEngine:
                     else:
                         self.on_event(f"Proceso muerto; reintento "
                                       f"{self._restarts}/3", "warn")
-                        # v3.7: ¿murió casi al instante? → antivirus:
-                        # la HIDRA repara (excluir+restaurar+re-descargar)
+                        # ¿murió casi al instante? → antivirus: HIDRA repara
                         try:
                             if self.hidra.activa and self.target_started and \
                                     time.time() - self.target_started < 60:
@@ -484,6 +511,22 @@ class AggressiveEngine:
                             self._launch(self.current_target, "reinicio",
                                          int(threads))
                     continue
+                # 3b) vivo pero hashrate 0 >5 min → ¿pool zombi? saltar.
+                if (self.is_running() and self.current_target and
+                        self.target_started and
+                        time.time() - self.target_started > 300 and
+                        (getattr(self.miner, "hashrate", 0) or 0) <= 0 and
+                        time.time() - self._ultimo_salto > 300):
+                    self._ultimo_salto = time.time()
+                    self.on_event("Motor vivo pero hashrate 0 durante más "
+                                  "de 5 min: sondeando el pool a fondo…",
+                                  "warn")
+                    if pools_salud.probe_salud(
+                            self.current_target["url"],
+                            force=True) is None:
+                        self.saltar_a_pool_viva(
+                            "pool ZOMBI (TCP ok, sin jobs) tras 5 min sin "
+                            "hashrate")
                 # 4) ¿avanzan los shares?
                 stats_ok = 0
                 if self.miner is not None:
@@ -541,6 +584,7 @@ class AggressiveEngine:
             "switch_log": list(self.switch_log)[-20:],
             "latencias_ms": lat,
             "disponibles": [t["id"] for t in self.targets_available()],
+            "salud_pools": pools_salud.estado_salud(),
             "hidra": hidra_ss,
         }
 
