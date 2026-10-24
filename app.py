@@ -19,7 +19,6 @@ from pool_stats import (get_price, network_stats, estimate_profitability,
                         f2pool_stats, nicehash_stats)
 import ui_components as ui
 import panel_agresivo
-import telegram_bot as tgbot
 
 st.set_page_config(page_title="⛏️ BTC Miner Studio", page_icon="⛏️",
                    layout="wide", initial_sidebar_state="expanded")
@@ -34,38 +33,6 @@ def get_runtime() -> dict:
     cfg = load_secrets()
     store = StateStore.get()
     binance = make_binance(cfg["BINANCE_API_KEY"], cfg["BINANCE_API_SECRET"])
-    # Auto-sanidad: si hay claves Binance pero falta BTC_PAYOUT_ADDRESS
-    # (p.ej. en Streamlit Cloud), la pedimos a Binance sola — sin retiros,
-    # sólo lectura. Así los objetivos del minero existen sin tocar nada.
-    if not str(cfg.get("BTC_PAYOUT_ADDRESS") or "").strip() \
-            and str(cfg.get("BINANCE_API_KEY") or "").strip():
-        try:
-            _d = binance.deposit_address("BTC") or {}
-            _a = str(_d.get("address") or "")
-            if _a and "SIMULAD" not in _a:
-                cfg["BTC_PAYOUT_ADDRESS"] = _a
-                store.append_event(
-                    "BTC_PAYOUT_ADDRESS obtenido automáticamente de Binance "
-                    f"({_a[:12]}…)", "ok")
-        except Exception as _e:
-            store.append_event(
-                f"No pude pedir la dirección de depósito a Binance: {_e}",
-                "warn")
-    # Igual para USDT (spot tetherUS, red TRC20) si PAYOUT_COIN=USDT
-    if str(cfg.get("PAYOUT_COIN") or "BTC").strip().upper() == "USDT" \
-            and not str(cfg.get("USDT_PAYOUT_ADDRESS") or "").strip() \
-            and str(cfg.get("BINANCE_API_KEY") or "").strip():
-        try:
-            _d = binance.deposit_address("USDT", "TRX") or {}
-            _a = str(_d.get("address") or "")
-            if _a and "SIMULAD" not in _a:
-                cfg["USDT_PAYOUT_ADDRESS"] = _a
-                store.append_event(
-                    "USDT_PAYOUT_ADDRESS (TRC20) obtenida automáticamente "
-                    f"de Binance ({_a[:12]}…)", "ok")
-        except Exception as _e:
-            store.append_event(
-                f"No pude pedir la dirección USDT a Binance: {_e}", "warn")
     store.append_event("App iniciada", "info")
     return {"cfg": cfg, "store": store, "binance": binance,
             "miner": None, "deposit_address": "", "payout_override": ""}
@@ -89,46 +56,10 @@ def network_stats_cached():
 # ---------------------------------------------------------------------------
 # Control del minero
 # ---------------------------------------------------------------------------
-_TG = {"cfg": None, "ts_evento": 0.0, "ts_share": 0.0}
-
-
-def _tg_cfg():
-    if _TG["cfg"] is None:
-        _TG["cfg"] = load_secrets()
-    return _TG["cfg"]
-
-
-def _tg(texto, nivel="info", clave="ts_evento", min_seg=120.0):
-    """Aviso a Telegram desde el minero en vivo (si está configurado).
-    Con throttle: los errores cada 2 min como mucho y los shares cada
-    minuto como mucho, para no inundar el chat."""
-    cfg = _tg_cfg()
-    if not (str(cfg.get("TELEGRAM_BOT_TOKEN") or "").strip()
-            and str(cfg.get("TELEGRAM_CHAT_ID") or "").strip()):
-        return
-    ahora = time.time()
-    if ahora - _TG[clave] < min_seg:
-        return
-    _TG[clave] = ahora
-    try:
-        tgbot.send(cfg, texto, level=nivel)
-    except Exception:
-        pass
-
-
 def miner_callbacks():
-    def _ev(m, l="info"):
-        STORE.append_event(m, l)
-        if l in ("error", "warn"):
-            _tg(f"⛏️ <b>Minero en vivo</b>: {m}", nivel=l)
-
-    def _sh(j, n, s):
-        STORE.append_share(j, n, s)
-        if s in ("aceptado", "bloque"):
-            _tg(f"⛏️ <b>Share {s.upper()}</b> · {time.strftime('%H:%M:%S')}",
-                clave="ts_share", min_seg=60.0)
-
-    return _ev, _sh, on_stats_callback
+    return (lambda m, l="info": STORE.append_event(m, l),
+            lambda j, n, s: STORE.append_share(j, n, s),
+            on_stats_callback)
 
 
 def on_stats_callback(stats: dict):
@@ -305,7 +236,7 @@ def render_live():
         st.caption(f"Recompensa bloque: **{est.get('reward_btc', 0):.4f} BTC**")
         st.progress(min(1.0, (stats.get("hashrate", 0) or 0) /
                         max(net.get("network_hashrate") or 1, 1)),
-                    text="Tu hash vs red (log-imaginario 😅)")
+                    text=f"Tu hash vs red (log-imaginario 😅)")
 
     st.divider()
     st.subheader("📜 Consola en vivo")

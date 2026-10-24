@@ -1,12 +1,9 @@
-# Secrets NUNCA en el repo (github público): sólo en tu máquina y en
-# Streamlit Cloud (secrets del dashboard desplegado).
+# ===== BTC Miner Studio / Cripo_Mine — nunca subir al repo =====
 .streamlit/secrets.toml
-.streamlit/*.toml
-!/.streamlit/secrets.toml.example
-
-# Estado/datos locales del minero
 data/
+logs/
 bin/
 __pycache__/
 *.pyc
+*.zip
 *.log

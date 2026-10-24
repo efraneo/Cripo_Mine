@@ -17,7 +17,7 @@ import streamlit as st
 
 import control
 import telegram_bot as tg
-from config import (DATA_DIR, format_hashrate, format_btc)
+from config import (DATA_DIR, format_hashrate, format_btc, format_uptime)
 from aggressive_engine import TARGETS, probe_pool
 from payout_manager import (fetch_unmineable, fetch_moneroocean,
                             fetch_binance_deposits)
@@ -62,9 +62,7 @@ def _daemon_df(n: int = 400) -> pd.DataFrame:
 
 def _target_badges(cfg):
     """Qué objetivos están listos según los secrets del usuario."""
-    coin = str(cfg.get("PAYOUT_COIN") or "BTC").strip().upper()
-    _addr_key = "USDT_PAYOUT_ADDRESS" if coin == "USDT" else "BTC_PAYOUT_ADDRESS"
-    has_btc = bool((cfg.get(_addr_key) or "").strip())
+    has_btc = bool((cfg.get("BTC_PAYOUT_ADDRESS") or "").strip())
     has_xmr = bool((cfg.get("WALLET_XMR") or "").strip())
     rows = []
     for t in TARGETS:
@@ -74,7 +72,7 @@ def _target_badges(cfg):
             "objetivo": t["nombre"],
             "pool": t["url"],
             "algo": t["algo"],
-            "pago": (coin if t["id"] == "unmineable" else t["pago"]),
+            "pago": t["pago"],
             "estado": "LISTO" if listo else "falta dirección en secrets",
         })
     return pd.DataFrame(rows), has_btc, has_xmr
@@ -83,6 +81,7 @@ def _target_badges(cfg):
 # ===========================================================================
 def render(RT: dict, CFG: dict):
     st.header("Intervención agresiva: multi-pool + failover + Telegram")
+    store = RT["store"]
 
     with st.expander("Por qué tu minero anterior no generó NADA (léeme)"):
         st.markdown(
@@ -202,9 +201,8 @@ def render(RT: dict, CFG: dict):
                    if lat_por_url.get(url_de[i]) else "sin respuesta"))
     st.dataframe(df_t, width="stretch", hide_index=True)
     if not (has_btc or has_xmr):
-        st.warning("Configura la dirección de pago (BTC_PAYOUT_ADDRESS, o "
-                   "USDT_PAYOUT_ADDRESS si PAYOUT_COIN=USDT) y/o WALLET_XMR "
-                   "en .streamlit/secrets.toml para que haya objetivos "
+        st.warning("Configura BTC_PAYOUT_ADDRESS y/o WALLET_XMR en "
+                   ".streamlit/secrets.toml para que haya objetivos "
                    "disponibles.")
 
     # ------------------------------------------------------------------
@@ -219,13 +217,6 @@ def render(RT: dict, CFG: dict):
             (st.success if ok else st.error)(
                 "Enviado" if ok else "Falló el envío: revisa token/chat_id")
     else:
-        _tok = str(CFG.get("TELEGRAM_BOT_TOKEN") or "").strip()
-        _cid = str(CFG.get("TELEGRAM_CHAT_ID") or "").strip()
-        st.caption(
-            "🔍 Detectado en secrets → TELEGRAM_BOT_TOKEN: "
-            f"{'✓ presente' if _tok else '✗ FALTA'} · TELEGRAM_CHAT_ID: "
-            f"{'✓ presente' if _cid else '✗ FALTA'} (secciones [telegram] "
-            "o planas: se aceptan ambas)")
         st.info("Sin Telegram. Configura TELEGRAM_BOT_TOKEN y "
                 "TELEGRAM_CHAT_ID para que el minero te avise al instante "
                 "(failovers, depósitos en Binance, resumen diario) y para "
@@ -244,24 +235,21 @@ def render(RT: dict, CFG: dict):
 
     # ------------------------------------------------------------------
     st.subheader("4 · Pipeline de pagos → Binance")
-    _coin = str(CFG.get("PAYOUT_COIN") or "BTC").strip().upper()
-    _pdir = str(CFG.get("USDT_PAYOUT_ADDRESS" if _coin == "USDT"
-                        else "BTC_PAYOUT_ADDRESS") or "").strip()
-    st.caption(f"Ruta: tu CPU mina RandomX → unMineable convierte a "
-               f"{_coin} → paga a tu dirección de depósito de Binance → "
-               "este vigilante te avisa por Telegram en el momento.")
+    st.caption("Ruta: tu CPU mina RandomX → unMineable convierte a BTC → "
+               "paga a tu dirección de depósito de Binance → este vigilante "
+               "te avisa por Telegram en el momento.")
     if st.button("Consultar balances y depósitos ahora"):
         with st.spinner("Consultando pools y Binance…"):
             price, psrc = get_price("binance")
-            um = fetch_unmineable(_pdir, coin=_coin)
+            um = fetch_unmineable((CFG.get("BTC_PAYOUT_ADDRESS") or "").strip())
             mo = fetch_moneroocean((CFG.get("WALLET_XMR") or "").strip())
-            deps = fetch_binance_deposits(RT["binance"], 10, coin=_coin)
+            deps = fetch_binance_deposits(RT["binance"], 10)
         k1, k2, k3 = st.columns(3)
         k1.metric("unMineable (sin pagar)",
                   format_btc(um["balance"]) if um else "—",
-                  (f"pagable {um['balance_payable']:.8f} · umbral pool "
+                  (f"pagable {um['balance_payable']:.8f} BTC · umbral pool "
                    f"{um['payment_threshold']:.5f}") if um else
-                  "requiere la dirección de pago en secrets")
+                  "requiere BTC_PAYOUT_ADDRESS")
         k2.metric("MoneroOcean (pendiente)",
                   f"{mo['due_xmr']:.4f} XMR" if mo else "—",
                   f"pagado {mo['paid_xmr']:.4f} XMR" if mo else
@@ -272,24 +260,22 @@ def render(RT: dict, CFG: dict):
             rows = [{"fecha": time.strftime("%Y-%m-%d %H:%M",
                                             time.localtime(
                                                 d.get("insertTime", 0) / 1000)),
-                     _coin: d.get("amount"),
+                     "BTC": d.get("amount"),
                      "estado": {0: "pendiente", 1: "acreditado"}.get(
                          d.get("status"), d.get("status")),
                      "tx": str(d.get("txId", ""))[:20] + "…"} for d in deps]
             st.dataframe(pd.DataFrame(rows), width="stretch",
                          hide_index=True)
         else:
-            umbral_txt = (f"{um['payment_threshold']:g} {_coin}" if um
-                          else "el umbral del pool")
-            st.caption(f"Aún no hay depósitos {_coin} en tu Binance: el "
-                       f"primer pago llega cuando el balance pagable cruce "
-                       f"{umbral_txt} (ajústalo en unmineable.com → "
-                       "Addresses para cobrar antes).")
+            st.caption("Aún no hay depósitos BTC en tu Binance: el primer "
+                       "pago llega cuando el balance pagable cruce el umbral "
+                       "del pool (~0.00075 BTC por defecto; ajústalo en "
+                       "unmineable.com → Addresses para cobrar antes).")
     pay_state = _read_json(PAYOUT_STATE_FILE)
     if pay_state:
         st.caption(f"Vigilante de pagos: {len(pay_state.get('known_txids', []))}"
                    f" depósitos rastreados · total visto "
-                   f"{pay_state.get('deposit_total_btc', 0):.6f} {_coin} "
+                   f"{pay_state.get('deposit_total_btc', 0):.8f} BTC "
                    f"(desde que corre el daemon).")
 
     # ------------------------------------------------------------------

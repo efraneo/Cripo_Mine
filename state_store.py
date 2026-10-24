@@ -10,7 +10,7 @@ import threading
 import time
 from collections import deque
 
-from config import METRICS_FILE
+from config import METRICS_FILE, DATA_DIR
 
 HISTORY_MAX = 2880      # ~2.4 h con muestreo cada 3 s
 EVENTS_MAX = 400

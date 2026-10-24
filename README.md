@@ -27,7 +27,7 @@ automático:
 
 | # | Objetivo | Pool | Algoritmo | Pago |
 |---|----------|------|-----------|------|
-| 1 | unMineable | `rx.unmineable.com:3333` (alt SSL `:443`) | rx/0 | **`PAYOUT_COIN` = BTC o USDT (tetherUS, red TRC20, umbral 1.5 USDT) directo a tu dirección de Binance** |
+| 1 | unMineable | `rx.unmineable.com:3333` (alt SSL `:443`) | rx/0 | **BTC directo a tu dirección de Binance** |
 | 2 | MoneroOcean | `gulf.moneroocean.stream:10128` | auto (13+ algos, fork XMRig-MO) | XMR a tu wallet |
 | 3 | SupportXMR | `pool.supportxmr.com:3333` | rx/0 | XMR (respaldo veterano) |
 
@@ -39,8 +39,8 @@ automático:
   o pool sin respuesta → cambia de objetivo y registra el motivo.
 - **Telegram** (`telegram_bot.py`): alertas de arranque/failover/depósitos
   y CONTROL REMOTO: `/estado` `/pausar` `/reanudar` `/cambiar` `/ganancias`.
-- **Vigilante de pagos** (`payout_manager.py`): detecta depósitos en tu
-  Binance vía API (BTC o USDT) y avisa al instante con su valor en USD; monitorea balance
+- **Vigilante de pagos** (`payout_manager.py`): detecta depósitos BTC en tu
+  Binance vía API y avisa al instante con su valor en USD; monitorea balance
   en unMineable y MoneroOcean y avisa "payout en camino" al cruzar el umbral.
 - **Vigilante** (`vigilante.py`): pausa térmica automática (CPU_TEMP_MAX),
   alerta de caída de internet y resumen diario.
@@ -174,6 +174,85 @@ streamlit run app.py
 - Balance spot y depósitos de tu Binance
 - Log de eventos y tabla de shares descargable en CSV
 
+## 🧰 Recolección de caja y APAGADO TOTAL (nuevo en v3.2)
+
+**Recolectar lo minado hacia Binance:**
+```bash
+python recolectar_pool.py            # reporte completo + envío a Telegram
+python recolectar_pool.py --sin-tg   # solo consola
+```
+Consulta en paralelo: balance en unMineable (BTC), saldo on-chain de tu
+dirección (mempool.space), XMR pendientes en MoneroOcean, y tu Binance
+(dirección de depósito, saldo spot, últimos depósitos). Imprime un plan
+paso a paso y guarda copia en `data/recolecta_*.json`.
+
+**Apagar TODO (xmrig.exe + daemon + bot):**
+| Método | Cómo |
+|---|---|
+| Windows (recomendado) | Doble clic en `DETENER_TODO.bat` |
+| Telegram | Envía `/apagar` a tu bot (nuevo comando v3.2) |
+| Consola | Ctrl+C en la ventana del daemon |
+
+El saldo pendiente en cada pool **no se pierde** al apagar: queda asociado
+a tu dirección y el pool lo paga solo cuando cruce su umbral
+(unMineable: 0.00075 BTC, ajustable en unmineable.com → Addresses;
+MoneroOcean: ~0.001 XMR). Recuerda: Binance no acepta depósitos de XMR
+(delistado), ese saldo va a tu wallet Monero.
+
+### ¿No puedes abrir una wallet Monero? (FAQ v3.3)
+
+| Opción | ¿Sirve? |
+|---|---|
+| **Binance** para el XMR | ❌ NO acepta XMR (delistado 2024-02) |
+| **Trust Wallet** | ❌ No soporta Monero (lo eliminó hace años) |
+| **Dejar `WALLET_XMR` vacío** | ✅ RECOMENDADO: el motor mina solo unMineable y paga en BTC directo a tu dirección (Binance si es su dirección de depósito) |
+| **Cake Wallet** — gratis, Windows/móvil, usa nodo remoto (no descarga la blockchain) | ✅ Si quieres cobrar XMR |
+| **Feather Wallet** (escritorio, ligera) · **Exodus** (multimoneda) | ✅ Alternativas XMR gratuitas |
+
+Con `WALLET_XMR` vacío el motor queda en **modo SOLO-BTC**: solo unMineable
+(apaga el failover a los pools XMR pero todo lo demás sigue igual), el
+arranque por Telegram lo anuncia, y `recolectar_pool.py` te sigue mostrando
+el pipeline completo. El XMR ya pendiente en MoneroOcean no se pierde al
+quitar `WALLET_XMR`: queda asociado a la dirección que usaste y lo
+recuperas cuando instales una wallet y la vuelvas a poner en secrets.
+
+## 🔄 Sincronización automática con GitHub (nuevo en v3.4)
+
+Un doble clic en **`ACTUALIZAR_BOT.bat`** sincroniza tu carpeta local
+(p. ej. `C:\software_phyton\Cripo_Mine`) con tu repo de GitHub
+(`efraneo/Cripo_Mine`), y al actualizarse el repo **Streamlit Cloud
+redespliega la app solo**. Nunca más descargas ni subidas manuales.
+
+**Primera vez (setup guiado, 2 minutos):**
+1. Instala Git si no lo tienes: `winget install --id Git.Git -e` (opciones
+   por defecto — incluye el Git Credential Manager).
+2. Copia `sincronizar.py`, `ACTUALIZAR_BOT.bat` y `.gitignore` a tu
+   carpeta del bot y haz doble clic en `ACTUALIZAR_BOT.bat`.
+3. Revisa el resumen de diferencias y confirma con `s`. La primera vez
+   que sube, tu navegador se abre para autorizar GitHub (solo una vez).
+
+**A partir de entonces:** doble clic = pull + commit + push automático.
+Si no hay cambios, lo dice y no toca nada.
+
+**Manual (equivalente en consola):**
+```bash
+python sincronizar.py auto     # pull + commit + push (recomendado)
+python sincronizar.py estado   # ver qué cambió sin tocar nada
+python sincronizar.py bajar    # solo descargar lo último del repo
+python sincronizar.py subir    # solo subir tus cambios
+```
+
+**Automatización total (opcional):** sincroniza cada 30 min con el
+Programador de tareas de Windows:
+```bat
+schtasks /Create /SC MINUTE /MO 30 /TN "CripoMine Sync" ^
+  /TR "C:\software_phyton\Cripo_Mine\ACTUALIZAR_BOT.bat"
+```
+
+**Seguridad:** el `.gitignore` incluido excluye SIEMPRE
+`.streamlit/secrets.toml` (tus claves), `data/`, `logs/`, `bin/`,
+`__pycache__/` y `*.zip`. Tus secrets nunca se suben al repo.
+
 ## 🐛 Solución de problemas
 
 | Problema | Solución |
@@ -195,33 +274,6 @@ streamlit run app.py
 - mempool.space API: https://mempool.space/docs/api/rest
 - Binance API docs: https://developers.binance.com/docs
 - NiceHash API docs: https://www.nicehash.com/docs
-
-## 🛠️ Modo Hidra — arrastrar más ganancia y hacer un solo depósito
-
-**¿Qué es la Hidra?**  
-Una **hidra** son varios mineros (una laptop, un PC de escritorio, una máquina vieja tuya, etc.) que **todos apuntan a la misma dirección USDT en unMineable**. Como unMineable agrega el balance de todos los workers bajo una misma dirección, obtienes **UN solo balance** y **UN solo depósito** automático cuando cruzas el umbral de pago (1.5 USDT por defecto en red TRC20).
-
-**¿Cómo funciona?**  
-1. **Este equipo**: ya está minando. Lo ves en /estado o el panel.  
-2. **Otro equipo**: clona el repo, pon los mismos secrets mínimos:  
-   - `PAYOUT_COIN = USDT`  
-   - `USDT_PAYOUT_ADDRESS` = TU dirección de depósito Binance (TRC20)  
-   - `WORKER_NAME` = distinto (p.ej. `laptop02`, `pc-de-escritorio`)  
-   - (Opcional) `TELEGRAM_BOT_TOKEN` / `CHAT_ID` si quieres alertas allí.  
-3. **Resultado**: los hashrates se suman en unMineable → balance creciente → cuando llegue a 1.5 USDT, unMineable paga **UN solo depósito** a tu Binance Spot.
-
-**¿Cómo arrastra más ganancia?**  
-- **Más dispositivos**: cada PC/laptop con CPU decente y 6 hilos RandomX suma ~730 H/s. No es rentabilidad exponencial, pero es la única vía real de escalar sin pagar servicios cloud costosos (cloud mining suele perder dinero por comisiones y electricidad).  
-- **Subir el umbral en unMineable**: ve a unmineable.com → Address → Settings → Payout Threshold. Subir de 1.5 a 5/10/50 USDT hará depósitos más grandes pero menos frecuentes. Por defecto paga una vez al día cuando se cruza el umbral.  
-- **Código de referido**: en unmineable.com puedes activar un código custom. Esto reduce la tarifa minera de 1% a 0.75%: de cada 100 USD minados, antes 1 USD iba a la plataforma y ahora solo 0.75 USD. Es pequeño pero honesto y acumulativo.
-
-**Advertencia de hardware**  
-Esta laptop (i5-1235U, 8 GB RAM) al 6 hilos deja la RAM en ~99% (sqlservr + Chrome). Si pruebas 8 hilos el sistema empieza a swap. Lo recomendable: 6 hilos por máquina, y cada máquina nueva es independiente (sin competir por RAM/CPU).
-
-**Comandos útiles**  
-- `/hidra` en Telegram: ver estado de la cabeza actual + instrucciones.  
-- `/estado`: balance, hashrate, total adquirido.  
-- `/ganancias`: desglose completo.
 
 ## ⚖️ Nota legal/energética
 

@@ -9,7 +9,6 @@ Interfaz:  .start()  .stop()  .is_running()  .stats()
 Callbacks: on_event(msg, level), on_share(job, nonce, status), on_stats(dict)
 Descarga segura de XMRig: https://github.com/xmrig/xmrig/releases
 """
-import json
 import os
 import re
 import shutil
@@ -30,25 +29,12 @@ XMRIG_CONFIG_FILE = os.path.join(DATA_DIR, "xmrig_config.json")
 
 
 def write_xmrig_config(pool_url: str, user: str, password: str,
-                       threads: int, path: str = XMRIG_CONFIG_FILE,
-                       port: int = 4068) -> str:
+                       threads: int, path: str = XMRIG_CONFIG_FILE) -> str:
     """Genera un config.json mínimo y válido para XMRig (docs: xmrig.com/docs/miner/config/pool)."""
-    # Preserva la caché de calibración del fork MoneroOcean (algo-perf):
-    # sin ella, CADA arranque re-mide ~13 algoritmos (~4-9 min) y durante
-    # esa calibración ni siquiera ata el puerto HTTP de la API 4068.
-    prev_perf = None
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            prev_perf = json.load(f).get("algo-perf")
-    except Exception:
-        prev_perf = None
     cfg = {
         "autosave": True,
-        # OJO: max-threads-hint es un PORCENTAJE (0-100) de hilos, no un
-        # conteo — poner 2 limitaba el minero al 2 % de la CPU (¡1 hilo!).
-        # El conteo exacto se pasa con -t en _build_command.
         "cpu": {"enabled": True, "hw-aes": None, "priority": None,
-                "max-threads-hint": 100, "memory-pool": False},
+                "max-threads-hint": max(1, int(threads)), "memory-pool": False},
         "pools": [{
             "url": pool_url,
             "user": user,
@@ -59,18 +45,13 @@ def write_xmrig_config(pool_url: str, user: str, password: str,
             "keepalive": True,
         }],
         "print-time": 5,
-        "http": {"enabled": True, "host": "127.0.0.1", "port": int(port),
+        "http": {"enabled": True, "host": "127.0.0.1", "port": 4068,
                  "access-token": None, "restricted": True},
     }
-    if prev_perf:
-        cfg["algo-perf"] = prev_perf
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    # Escritura atómica: dos arrancas simultáneas no dejan JSON truncado
-    # (xmrig abortaría con "Failed to read config").
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
+    with open(path, "w", encoding="utf-8") as f:
+        import json
         json.dump(cfg, f, indent=2)
-    os.replace(tmp, path)
     return path
 
 
@@ -117,14 +98,9 @@ class ExternalMiner:
         name = os.path.basename(self.binary_path).lower()
         cmd = [self.binary_path]
         if "xmrig" in name:
-            # Puerto 4068 fijo (lo usan supervisora/dashboard); la
-            # doble instancia se evita con el guard de daemon_alive.
             cfg = write_xmrig_config(self.pool_url, self.user, self.password,
                                      self.threads)
-            # -t fija el nº real de hilos (max-threads-hint es % y no basta).
-            # El http lo da la sección "http" del config (así funcionó en la
-            # sesión de 1 h); --http-port en CLI rompía el bind en este fork.
-            cmd += ["-c", cfg, "-t", str(self.threads)]
+            cmd += ["-c", cfg]
         else:
             # convención cpuminer-opt / minerd
             url = self.pool_url.replace("stratum+tcp://", "").replace(
@@ -210,24 +186,19 @@ class ExternalMiner:
             self.hashrate = val * mult
         if self._re_acc.search(low):
             mm = self._re_shares.search(line)
-            if mm:
-                # XMRig imprime "accepted (aceptados/rechazados)" — verificado
-                # en el código fuente (Network::onResultAccepted). Antes se
-                # leía como (aceptados/total) y los rechazados salían 0.
-                self.shares_ok = int(mm.group(1))
-                self.shares_rej = int(mm.group(2))
+            ok, total = (int(mm.group(1)), int(mm.group(2))) if mm else \
+                (self.shares_ok + 1, None)
+            if total is not None:
+                self.shares_ok, self.shares_rej = ok, max(total - ok, 0)
             else:
-                self.shares_ok += 1
+                self.shares_ok = ok
             self.on_share("ext", "-", "aceptado")
             self.on_event(f"Share aceptado ({self.shares_ok}/"
                           f"{self.shares_ok + self.shares_rej})", "ok")
         elif self._re_rej.search(low):
             mm = self._re_shares.search(line)
             if mm:
-                self.shares_ok = int(mm.group(1))
-                self.shares_rej = int(mm.group(2))
-            else:
-                self.shares_rej += 1
+                self.shares_rej = max(int(mm.group(2)) - int(mm.group(1)), 0)
             self.on_share("ext", "-", "rechazado")
             self.on_event("Share rechazado por el pool", "warn")
         m = self._re_diff.search(line)
@@ -279,3 +250,59 @@ class ExternalMiner:
         if shutil.which("xmrig"):
             out.append(shutil.which("xmrig"))
         return out
+
+
+# ---------------------------------------------------------------------------
+# Apagado de emergencia: matar binarios de minado huérfanos
+# ---------------------------------------------------------------------------
+def matar_mineros_huerfanos(nombres=("xmrig", "cpuminer", "minerd")) -> int:
+    """Termina cualquier binario de minado vivo en el sistema (xmrig.exe
+    lanzado a mano, procesos huérfanos tras un cierre brusco, etc.).
+
+    Lo usan: el apagado del daemon (/apagar por Telegram o botón Detener)
+    y DETENER_TODO.bat. Devuelve el nº de procesos terminados (mejor
+    esfuerzo). Nunca explota.
+    """
+    matados = 0
+    if HAS_PSUTIL:
+        objetivos = []
+        for p in psutil.process_iter(["pid", "name"]):
+            try:
+                nom = (p.info.get("name") or "").lower()
+                if nom and any(n in nom for n in nombres):
+                    objetivos.append(p)
+            except Exception:
+                continue
+        for p in objetivos:
+            try:
+                p.terminate()
+                matados += 1
+            except Exception:
+                continue
+        try:
+            _, vivos = psutil.wait_procs(objetivos, timeout=3)
+            for p in vivos:
+                try:
+                    p.kill()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        return matados
+    # Fallback sin psutil (Windows: taskkill admite comodín en /FI)
+    try:
+        if os.name == "nt":
+            for n in nombres:
+                rc = subprocess.run(
+                    ["taskkill", "/F", "/FI", f"IMAGENAME eq {n}*.exe"],
+                    capture_output=True, timeout=10)
+                if rc.returncode == 0:
+                    matados += 1
+        else:
+            rc = subprocess.run(["pkill", "-f", "|".join(nombres)],
+                                capture_output=True, timeout=10)
+            if rc.returncode == 0:
+                matados += 1
+    except Exception:
+        pass
+    return matados

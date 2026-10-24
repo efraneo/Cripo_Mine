@@ -15,6 +15,7 @@ Comandos que el bot entiende (solo desde tu chat configurado):
   /reanudar → vuelve a minar
   /cambiar  → fuerza el failover al siguiente pool
   /ganancias→ balances de pools + últimos depósitos en Binance
+  /apagar   → APAGA TODO: daemon + xmrig + este bot (v3.2)
   /ayuda    → lista de comandos
 
 Alertas automáticas que envía el daemon:
@@ -23,6 +24,7 @@ Alertas automáticas que envía el daemon:
   pausa térmica · resumen diario.
 """
 import threading
+import time
 
 import requests
 
@@ -38,12 +40,7 @@ def _api(cfg, method: str, params: dict = None, timeout: int = 10):
     if not token:
         raise RuntimeError("Falta TELEGRAM_BOT_TOKEN en secrets")
     url = API.format(token=token, method=method)
-    try:
-        r = requests.get(url, params=params or {}, timeout=timeout)
-    except Exception as e:
-        # SEGURIDAD: las excepciones de requests incluyen la URL completa
-        # (…/bot<TOKEN>/…) — sin sanear, el token se fuga a logs y dashboard.
-        raise RuntimeError(f"error de red ({type(e).__name__})") from None
+    r = requests.get(url, params=params or {}, timeout=timeout)
     data = r.json() if r.headers.get("content-type", "").startswith(
         "application/json") else {}
     if not data.get("ok"):
@@ -99,16 +96,21 @@ def print_chat_ids(cfg):
 # Mensajes con formato
 # ---------------------------------------------------------------------------
 def msg_daemon_started(cfg, status: dict):
-    # status puede venir de get_status() (target anidado en "engine")
-    # o de engine.snapshot() (target en la raíz)
-    t = status.get("target") or (status.get("engine") or {}).get("target") or {}
+    eng = status.get("engine") or {}
+    t = eng.get("target") or status.get("target") or {}
+    disp = eng.get("disponibles") or []
+    extra = ""
+    if len(disp) == 1:
+        extra = ("\n<b>Modo SOLO-BTC</b>: sin WALLET_XMR solo mina "
+                 "unMineable y todo lo minado llega en BTC a tu "
+                 "dirección (Binance si es su dirección de depósito).")
     send(cfg, (
         "<b>DAEMON AGRESIVO INICIADO</b>\n"
         f"Objetivo: <b>{t.get('nombre', '—')}</b>\n"
         f"Pool: <code>{t.get('url', '—')}</code>\n"
         f"Algoritmo: <code>{t.get('algo', '—')}</code> · pago en "
         f"<b>{t.get('pago', '—')}</b>\n"
-        f"Failover automático activado. Comandos: /ayuda"), "ok")
+        f"Failover automático activado. Comandos: /ayuda" + extra), "ok")
 
 
 def msg_daemon_stopped(cfg, reason: str = ""):
@@ -202,14 +204,11 @@ class TelegramController(threading.Thread):
     def _handle(self, cmd: str):
         self.on_event(f"Comando Telegram: {cmd}", "info")
         if cmd == "/estado":
-            st = self.get_status(include_earnings=True)
+            st = self.get_status()
             t = (st.get("engine") or {}).get("target") or {}
             tot = st.get("totals") or {}
             pay = st.get("payout") or {}
             um = pay.get("unmineable") or {}
-            coin = pay.get("coin", "BTC")
-            acred = float(pay.get("binance_acred", 0) or 0)
-            total = float(pay.get("total_adquirido", 0) or 0)
             send(self.cfg, (
                 "<b>ESTADO DEL MINERO</b>\n"
                 f"Objetivo: <b>{t.get('nombre', '—')}</b>\n"
@@ -217,12 +216,8 @@ class TelegramController(threading.Thread):
                 f"Shares OK: <b>{tot.get('shares_ok', 0)}</b> · "
                 f"Rechazados: {tot.get('shares_rej', 0)}\n"
                 f"Uptime: {st.get('uptime_txt', '—')}\n"
-                f"🏦 Pool (sin pagar): {um.get('balance', 0):.6f} {coin} "
-                f"(pagable {um.get('balance_payable', 0):.6f}"
-                + (f", umbral {um.get('threshold', 0):g}"
-                   if um.get("threshold") else "") + ")\n"
-                f"✅ Ya en tu Binance Spot: {acred:.6f} {coin}\n"
-                f"💰 <b>TOTAL ADQUIRIDO: {total:.6f} {coin}</b>\n"
+                f"unMineable: {um.get('balance', 0):.8f} BTC "
+                f"(pagable {um.get('balance_payable', 0):.8f})\n"
                 f"Pausado: {'sí' if (st.get('engine') or {}).get('paused') else 'no'}"))
         elif cmd == "/pausar":
             control.write(paused_manual=True, updated_by="telegram")
@@ -240,53 +235,25 @@ class TelegramController(threading.Thread):
             um = pay.get("unmineable") or {}
             mo = pay.get("moneroocean") or {}
             deps = pay.get("binance_total_btc", 0.0)
-            coin = pay.get("coin", "BTC")
-            acred = float(pay.get("binance_acred", 0) or 0)
-            total = float(pay.get("total_adquirido", 0) or 0)
             lines = ["<b>GANANCIAS</b>"]
             if um:
                 lines.append(
-                    f"🏦 En el pool: <b>{um.get('balance', 0):.6f}</b> {coin} "
-                    f"sin pagar (pagable {um.get('balance_payable', 0):.6f}"
-                    + (f", umbral pool {um.get('threshold', 0):g}"
+                    f"unMineable: <b>{um.get('balance', 0):.8f}</b> BTC "
+                    f"sin pagar (pagable {um.get('balance_payable', 0):.8f}"
+                    + (f", umbral pool {um.get('threshold', 0):.5f}"
                        if um.get("threshold") else "") + ")")
-            lines.append(f"✅ Ya en tu Binance Spot: <b>{acred:.6f}</b> {coin}")
-            lines.append(f"💰 <b>TOTAL ADQUIRIDO: {total:.6f} {coin}</b>")
             if mo:
                 lines.append(f"MoneroOcean: <b>{mo.get('due_xmr', 0):.6f}"
                              f"</b> XMR pendientes")
-            lines.append(f"Depósitos {coin} rastreados por el daemon: "
-                         f"<b>{deps:.6f}</b> {coin}")
+            lines.append(f"Depósitos BTC vistos en Binance: "
+                         f"<b>{deps:.8f}</b> BTC")
             send(self.cfg, "\n".join(lines), "money")
-        elif cmd == "/hidra":
-            st = self.get_status(include_earnings=True)
-            pay = st.get("payout") or {}
-            um = pay.get("unmineable") or {}
-            coin = pay.get("coin", "USDT")
-            bal = float(um.get("balance", 0) or 0)
-            thr = float(um.get("threshold", 0) or 0)
-            acred = float(pay.get("binance_acred", 0) or 0)
-            total = bal + acredit
-            eng = st.get("engine") or {}
-            t = eng.get("target") or {}
-            hashrate = st.get("hashrate_txt", "—")
-            worker = (self.cfg.get("WORKER_NAME") or "cpu01")
-            send(self.cfg, (
-                "<b>MODo HIDRA</b>\n"
-                f"Cabeza activa: <b>{worker}</b>\n"
-                f"Hashrate: <b>{hashrate}</b>\n"
-                f"🏦 En el pool (sin pagar): <b>{bal:.6f} {coin}</b>\n"
-                f"({bal/thr*100:.2f}% de {thr:g})\\n"
-                f"✅ Ya en tu Binance Spot: <b>{acred:.6f} {coin}</b>\n"
-                f"💰 TOTAL ADQUIRIDO: <b>{total:.6f} {coin}</b>\n"
-                "¿Cómo sumar más cabezas?\n"
-                "• Clona este repo en otro PC o laptop que ya tengas (o compre una usada con energía ya pagada).\n"
-                "• En ese nuevo equipo: mismo repo, mismos secrets MÍNIMOS (solo PAYOUT_COIN=USDT, USDT_PAYOUT_ADDRESS, WORKER_NAME distinto).\n"
-                "• Todos los workers apuntan a la MISMA dirección USDT: el saldo se AUTOMÁGENEmente agrega en unMineable → UN solo balance → UN solo depósito al cruzar 1.5 USDT.\n"
-                "• En unMineable.com → Address → Settings puedes subir el umbral de pago (default 1.5 USDT TRC20) para depósitos más grandes y menos frecuentes.\n"
-                "• Código de referido en unMineable: 0.75% de descuento en la tarifa (de 1% → 0.75%) si activas un código custom en la dirección.\n"
-                "• Ideal: cada máquina nueva = +~730 H/s rx/0 = +0.015 USDT/día aproximadamente al umbral. A la larga la única forma real de arrastre.\n"
-                "• Cuidado: 8 hilos en esta laptop ya dejan RAM al 99% (sqlservr+Chrome). Si agregas PCs, cada uno es independiente."), "info")
+        elif cmd in ("/apagar", "/stop", "/cerrar"):
+            control.write(action="stop", updated_by="telegram")
+            send(self.cfg, "<b>APAGADO TOTAL</b> en marcha: cerrando el "
+                 "daemon, el minero (xmrig) y este bot. El saldo pendiente "
+                 "en cada pool NO se pierde: consúltalo con /ganancias o "
+                 "ejecutando recolectar_pool.py antes de apagar.", "warn")
         elif cmd in ("/ayuda", "/start", "/help"):
             send(self.cfg, (
                 "<b>Comandos disponibles</b>\n"
@@ -295,7 +262,7 @@ class TelegramController(threading.Thread):
                 "/reanudar — vuelve a minar\n"
                 "/cambiar — fuerza failover al siguiente pool\n"
                 "/ganancias — balances y depósitos\n"
-                "/ayuda — esta lista\n"
-                "/hidra — ver estado de la cabeza y cómo sumar más para arrastrar más ganancia y hacer un solo depósito"), "info")
+                "/apagar — APAGA TODO (daemon + xmrig + bot)\n"
+                "/ayuda — esta lista"), "info")
         else:
             send(self.cfg, "Comando no reconocido. /ayuda", "info")

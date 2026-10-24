@@ -14,8 +14,9 @@ Uso:
 Métricas: se escriben en data/metrics_daemon.json (separadas de las del
 modo python del dashboard para no pisarse). Log: logs/daemon.log.
 
-Parada amable: escribe {"action": "stop"} en data/control.json (el botón
-Detener del dashboard o Telegram /pausar→stop lo hacen), o Ctrl+C.
+Parada amable: escribe {"action": "stop"} en data/control.json (botón
+Detener del dashboard o /apagar por Telegram), o Ctrl+C. Al apagar se
+cierran además los binarios huérfanos (xmrig.exe) vía miner_manager.
 """
 import argparse
 import os
@@ -46,6 +47,7 @@ from aggressive_engine import AggressiveEngine, TARGETS  # noqa: E402
 from payout_manager import PayoutWatcher  # noqa: E402
 from vigilante import Watchdog       # noqa: E402
 from binance_api import make_binance  # noqa: E402
+from miner_manager import matar_mineros_huerfanos  # noqa: E402
 
 
 def log(msg: str, level: str = "info"):
@@ -56,10 +58,6 @@ def log(msg: str, level: str = "info"):
 # ---------------------------------------------------------------------------
 store = StateStore.get()
 cfg = load_secrets()
-payout = None                             # se asigna en main() (PayoutWatcher)
-
-# throttle de alertas de share (segundos entre aviso y aviso)
-_share_alert = {"ts": 0.0}
 
 
 def on_stats(stats: dict):
@@ -68,49 +66,10 @@ def on_stats(stats: dict):
                          stats.get("shares_ok", 0), stats.get("shares_rej", 0))
 
 
-def on_share(job, nonce, status):
-    """Registra el share en el store Y avisa a Telegram (con throttle).
-
-    Antes el daemon descartaba los shares (lambda: None): /estado, el
-    resumen diario y los contadores salían siempre en 0. Ahora cada
-    aceptado alimenta el histórico y dispara un aviso para que puedas
-    ver la ganancia acercándose al umbral de pago."""
-    store.append_share(job, nonce, status)
-    if status not in ("aceptado", "bloque"):
-        return
-    now = time.time()
-    try:
-        gap = float(cfg.get("SHARE_ALERT_MIN_SEC", 120) or 120)
-    except (TypeError, ValueError):
-        gap = 120.0
-    if now - _share_alert["ts"] < gap:
-        return
-    _share_alert["ts"] = now
-    try:
-        hr = format_hashrate((store.last() or {}).get("hashrate", 0) or 0)
-        tot = store.totals()
-        pay = payout.snapshot_light() if payout is not None else {}
-        um = pay.get("unmineable") or {}
-        coin = pay.get("coin", "USDT")
-        bal = float(um.get("balance", 0) or 0)
-        thr = float(um.get("threshold", 0) or 0)
-        acred = float(pay.get("binance_acred", 0) or 0)
-        total = bal + acred
-        pct = (bal / thr * 100.0) if thr else 0.0
-        tg.send(cfg, (
-            f"<b>SHARE {status.upper()}</b> · nº {tot.get('shares_ok', 0)} "
-            f"· hashrate {hr}\n"
-            f"🏦 Pool: <b>{bal:.6f} {coin}</b> ({pct:.2f}% de {thr:g}) · "
-            f"✅ Binance: {acred:.6f}\n"
-            f"💰 <b>TOTAL ADQUIRIDO: {total:.6f} {coin}</b>"), "ok")
-    except Exception:
-        pass
-
-
 engine = AggressiveEngine(
     cfg,
     on_event=lambda m, l="info": log(m, l),
-    on_share=on_share,                     # shares → store + aviso Telegram
+    on_share=lambda j, n, s: None,          # shares ya se cuentan vía stats
     on_stats=on_stats)
 
 
@@ -123,9 +82,8 @@ def get_status(include_earnings: bool = False) -> dict:
     """Snapshot agregado para /estado de Telegram y resumen diario."""
     tot = store.totals()
     eng = engine.snapshot()
-    pay = payout.snapshot_light() if (include_earnings and payout) else \
-        {"coin": str(cfg.get("PAYOUT_COIN") or "BTC").upper(),
-         "unmineable": {"balance": 0, "paid": 0, "threshold": 0},
+    pay = payout.snapshot_light() if include_earnings else \
+        {"unmineable": {"balance": 0, "paid": 0},
          "moneroocean": {"due_xmr": 0},
          "binance_total_btc": 0.0}
     hashrate = (store.last() or {}).get("hashrate", 0) or 0
@@ -141,15 +99,13 @@ def get_status(include_earnings: bool = False) -> dict:
 # ---------------------------------------------------------------------------
 def validate_environment() -> bool:
     """Sin direcciones no hay pipeline: avisa y aborta con instrucciones."""
-    coin = str(cfg.get("PAYOUT_COIN") or "BTC").strip().upper() or "BTC"
-    pay_key = "USDT_PAYOUT_ADDRESS" if coin == "USDT" else "BTC_PAYOUT_ADDRESS"
-    has_pay = bool((cfg.get(pay_key) or "").strip())
+    has_btc = bool((cfg.get("BTC_PAYOUT_ADDRESS") or "").strip())
     has_xmr = bool((cfg.get("WALLET_XMR") or "").strip())
-    if not (has_pay or has_xmr):
-        log(f"FALTAN DIRECCIONES: pon {pay_key} (para cobrar en {coin} "
+    if not (has_btc or has_xmr):
+        log("FALTAN DIRECCIONES: pon BTC_PAYOUT_ADDRESS (para cobrar en BTC "
             "vía unMineable) o WALLET_XMR (MoneroOcean/SupportXMR) en "
             ".streamlit/secrets.toml", "error")
-        tg.send(cfg, f"<b>No puedo arrancar</b>: falta {pay_key} o "
+        tg.send(cfg, "<b>No puedo arrancar</b>: falta BTC_PAYOUT_ADDRESS o "
                      "WALLET_XMR en secrets.", "error")
         return False
     if not tg.configured(cfg):
@@ -164,6 +120,7 @@ def shutdown(reason: str = ""):
         payout.stop()
         wd.stop()
         tctrl.stop()
+        matar_mineros_huerfanos()   # cierra xmrig.exe/cpuminer huérfanos
         tg.msg_daemon_stopped(cfg, reason)
         control.write(action="none", daemon_pid=None, updated_by="daemon")
     except Exception:
@@ -220,15 +177,7 @@ def main():
                 break
     except KeyboardInterrupt:
         stop_reason = "Ctrl+C"
-    except SystemExit:
-        # SIGTERM → sys.exit(0): sin este catch el finally es el único que
-        # garantiza parar xmrig (antes quedaba huérfano al 100 % CPU).
-        stop_reason = "señal de terminación (SIGTERM)"
-        raise
-    finally:
-        # finally garantiza que xmrig NUNCA quede huérfano (crash, SIGTERM,
-        # Ctrl+C o parada amable): engine.stop mata al subproceso.
-        shutdown(stop_reason)
+    shutdown(stop_reason)
     log(f"Daemon terminado ({stop_reason})", "warn")
 
 

@@ -23,6 +23,7 @@ Funciones clave:
 """
 import json
 import os
+import platform
 import socket
 import stat
 import threading
@@ -33,7 +34,7 @@ from collections import deque
 import requests
 
 import control
-from config import BIN_DIR, DATA_DIR
+from config import BASE_DIR, BIN_DIR
 from miner_manager import ExternalMiner
 
 UA = {"User-Agent": "btc-miner-studio-agresivo/2.0"}
@@ -51,35 +52,18 @@ OFFICIAL_LINUX = ("https://github.com/xmrig/xmrig/releases/download/v6.26.0/"
 OFFICIAL_WINDOWS = ("https://github.com/xmrig/xmrig/releases/download/"
                     "v6.26.0/xmrig-6.26.0-windows-x64.zip")
 
-# Estado en DATA_DIR (no BASE_DIR/data): en la nube Streamlit solo /tmp es
-# escribible y config._ensure_dir redirige DATA_DIR allí; BASE_DIR/data
-# fallaría en silencio y el panel no vería los failovers.
-STATE_FILE = os.path.join(DATA_DIR, "engine_state.json")
+STATE_FILE = os.path.join(BASE_DIR, "data", "engine_state.json")
 
 
 # ---------------------------------------------------------------------------
 # Catálogo de objetivos agresivos
 # ---------------------------------------------------------------------------
 def _user_unmineable(cfg, worker):
-    """Formato de usuario unMineable: COIN:direccion.worker.
-
-    PAYOUT_COIN=USDT paga en tetherUS (spot Binance vía red TRC20, umbral
-    1.5 USDT) en vez de BTC (umbral ~0.00075 BTC ≈ 70+ USD). La red se
-    infiere de la propia dirección: T… = TRC20 para USDT.
-    """
-    coin = str(cfg.get("PAYOUT_COIN") or "BTC").strip().upper() or "BTC"
-    if coin == "USDT":
-        addr = (cfg.get("USDT_PAYOUT_ADDRESS") or "").strip()
-        if not addr:
-            raise ValueError("Falta USDT_PAYOUT_ADDRESS (dirección de "
-                             "depósito USDT TRC20 de tu Binance)")
-    else:
-        coin = "BTC"
-        addr = (cfg.get("BTC_PAYOUT_ADDRESS") or "").strip()
-        if not addr:
-            raise ValueError("Falta BTC_PAYOUT_ADDRESS (necesaria para que "
-                             "unMineable pague en BTC a tu Binance)")
-    return f"{coin}:{addr}.{(worker or 'cpu01').strip() or 'cpu01'}"
+    addr = (cfg.get("BTC_PAYOUT_ADDRESS") or "").strip()
+    if not addr:
+        raise ValueError("Falta BTC_PAYOUT_ADDRESS (necesaria para que "
+                         "unMineable pague en BTC a tu Binance)")
+    return f"BTC:{addr}.{(worker or 'cpu01').strip() or 'cpu01'}"
 
 
 def _user_wallet(cfg, worker):
@@ -93,15 +77,16 @@ def _user_wallet(cfg, worker):
 TARGETS = [
     {
         "id": "unmineable",
-        "nombre": "unMineable (paga BTC o USDT directo a Binance)",
+        "nombre": "unMineable (paga en BTC directo a Binance)",
         "url": "rx.unmineable.com:3333",
         "algo": "rx/0",
-        "pago": "BTC/USDT",
+        "pago": "BTC",
         "user_fn": _user_unmineable,
-        "nota": "Endpoint RandomX oficial. PAYOUT_COIN elige la moneda: "
-                "BTC (umbral ~0.00075 BTC) o USDT (red TRC20, umbral "
-                "1.5 USDT — llega directo al Spot de Binance como "
-                "tetherUS). Formato user: COIN:<dirección>.<worker>.",
+        "nota": "Endpoint RandomX oficial (soporte unMineable 2026: "
+                "rx.unmineable.com:3333; alternativa SSL stratum+ssl://rx." 
+                "unmineable.com:443). Formato user: BTC:<dirección>.<worker> "
+                "o alias de la sección Addresses. Umbral de pago real lo da "
+                "la API (~0.00075 BTC) y puedes ajustarlo en unmineable.com.",
     },
     {
         "id": "moneroocean",
@@ -264,7 +249,6 @@ class AggressiveEngine:
         self.paused = False
         self.switch_log = deque(maxlen=60)
         self._stop = threading.Event()
-        self._lock = threading.Lock()   # protege _launch (miner huérfano)
         self._monitor = None
         self._restarts = 0
         self._last_shares_seen = -1
@@ -298,8 +282,7 @@ class AggressiveEngine:
         return inner
 
     def _make_miner(self, target, threads) -> ExternalMiner:
-        worker = self.cfg.get("WORKER_NAME") or "cpu01"
-        user = target["user_fn"](self.cfg, worker)
+        user = target["user_fn"](self.cfg, "cpu01")
         return ExternalMiner(
             binary_path=self.binary_path,
             extra_args="--no-color --donate-level=1",
@@ -337,10 +320,7 @@ class AggressiveEngine:
         self._save_state()
 
     def _launch(self, target, reason: str, threads: int):
-        # Lock de instancia (antes se creaba uno NUEVO en cada llamada:
-        # "with threading.Lock()" no protege nada — carrera real entre el
-        # monitor y stop()/switch → minero huérfano).
-        with self._lock:
+        with threading.Lock():
             if self.miner is not None:
                 try:
                     self.miner.stop()
@@ -479,16 +459,7 @@ class AggressiveEngine:
 
     # ------------------------------------------------------------------
     def snapshot(self) -> dict:
-        # Sondas en PARALELO: antes eran secuenciales (hasta 3×3 s = 9 s)
-        # y bloqueaban el hilo de comandos de Telegram con cada /estado.
-        try:
-            from concurrent.futures import ThreadPoolExecutor
-            with ThreadPoolExecutor(max_workers=len(TARGETS)) as ex:
-                futs = {ex.submit(probe_pool, t["url"]): t["id"]
-                        for t in TARGETS}
-                lat = {fid: f.result() for f, fid in futs.items()}
-        except Exception:
-            lat = {t["id"]: probe_pool(t["url"]) for t in TARGETS}
+        lat = {t["id"]: probe_pool(t["url"]) for t in TARGETS}
         return {
             "mode": self.MODE,
             "running": self.is_running(),

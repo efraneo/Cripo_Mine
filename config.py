@@ -85,10 +85,6 @@ DEFAULTS = {
     "BINANCE_API_KEY": "",
     "BINANCE_API_SECRET": "",
     "BTC_PAYOUT_ADDRESS": "",
-    # Pago en unMineable: "BTC" (default) o "USDT" (spot tetherUS en Binance,
-    # red TRC20 — umbral de pago 1.5 USDT vs ~0.00075 BTC en BTC).
-    "PAYOUT_COIN": "BTC",
-    "USDT_PAYOUT_ADDRESS": "",
     "POOL_URL": "stratum+tcp://public-pool.io:21496",
     "POOL_USER": "",
     "POOL_PASSWORD": "x",
@@ -112,36 +108,7 @@ DEFAULTS = {
     "CPU_TEMP_MAX": 85.0,
     "DAILY_SUMMARY_HOUR": 20,
     "PAYOUT_ALERT_MIN_BTC": 0.0005,
-    # Avisos de ganancia en Telegram (daemon)
-    "SHARE_ALERT_MIN_SEC": 120,        # throttle aviso por share aceptado
-    "EARNINGS_REPORT_HOURS": 4,        # informe de saldo/ETA cada N h (0=off)
 }
-
-
-def _aplanar(d: dict) -> dict:
-    """Normaliza secrets con secciones TOML. Si pegaste
-
-        [telegram]
-        TELEGRAM_BOT_TOKEN = "..."
-        (o bot_token / chat_id / token)
-
-    Streamlit lo entrega anidado y la app lo buscaba plano → "Sin Telegram"
-    aunque la clave esté. Aquí se aplana (la raíz gana) y se renombran los
-    alias habituales de la sección telegram."""
-    if not isinstance(d, dict):
-        return {}
-    alias_sec = {"telegram", "tg", "bot"}
-    alias = {"bot_token": "TELEGRAM_BOT_TOKEN", "token": "TELEGRAM_BOT_TOKEN",
-             "chat_id": "TELEGRAM_CHAT_ID", "chatid": "TELEGRAM_CHAT_ID"}
-    out = {k: v for k, v in d.items() if not isinstance(v, dict)}
-    for k, v in d.items():
-        if not isinstance(v, dict):
-            continue
-        es_tg = str(k).strip().lower() in alias_sec
-        for sk, sv in _aplanar(v).items():
-            clave = alias.get(str(sk).lower(), sk) if es_tg else sk
-            out.setdefault(clave, sv)
-    return out
 
 
 def load_secrets() -> dict:
@@ -151,11 +118,12 @@ def load_secrets() -> dict:
     try:
         import streamlit as st
         try:
-            sec = _aplanar(dict(st.secrets))  # type: ignore[attr-defined]
+            sec = dict(st.secrets)  # type: ignore[attr-defined]
         except Exception:
             sec = {}
         for k, v in sec.items():
-            cfg[k] = v
+            if k in DEFAULTS:
+                cfg[k] = v
     except Exception:
         pass
     # Tipos numéricos seguros
@@ -169,8 +137,7 @@ def load_secrets() -> dict:
         cfg["AUTO_REFRESH_SECONDS"] = 5
     # v2: tipos de los nuevos secrets
     for _k in ("FAILOVER_MINUTES", "ROTATE_MINUTES", "CPU_TEMP_MAX",
-               "DAILY_SUMMARY_HOUR", "PAYOUT_ALERT_MIN_BTC",
-               "SHARE_ALERT_MIN_SEC", "EARNINGS_REPORT_HOURS"):
+               "DAILY_SUMMARY_HOUR", "PAYOUT_ALERT_MIN_BTC"):
         try:
             cfg[_k] = float(cfg[_k])
         except Exception:
@@ -320,12 +287,6 @@ SECRETS_HELP = [
                            "solo en secrets.toml, nunca en el código."),
     ("BTC_PAYOUT_ADDRESS", "Dirección Bitcoin donde recibes el minado. Recomendado: la "
                            "dirección de depósito BTC de tu Binance (pestaña Binance)."),
-    ("PAYOUT_COIN", "Moneda de pago en unMineable: BTC o USDT. Con USDT el "
-                    "depósito cae directo en tu Spot de Binance como "
-                    "tetherUS (red TRC20, umbral 1.5 USDT)."),
-    ("USDT_PAYOUT_ADDRESS", "Dirección USDT de tu Binance (red TRC20, empieza "
-                            "por T). Solo necesaria si PAYOUT_COIN=USDT; si "
-                            "falta y hay claves Binance, la app la pide sola."),
     ("POOL_URL", "URL stratum del pool. Ej: stratum+tcp://public-pool.io:21496"),
     ("POOL_USER", "Usuario del pool. Si lo dejas vacío se usa BTC_PAYOUT_ADDRESS."),
     ("POOL_PASSWORD", "Contraseña del pool. En pools públicos casi siempre es 'x'."),
@@ -344,11 +305,13 @@ SECRETS_HELP = [
     # v2 — intervención agresiva
     ("TELEGRAM_BOT_TOKEN", "Token del bot de Telegram (créalo con @BotFather "
                            "/newbot). Habilita alertas instantáneas y "
-                           "control remoto (/pausar /reanudar /estado)."),
+                           "control remoto (/pausar /reanudar /apagar)."),
     ("TELEGRAM_CHAT_ID", "Tu chat_id de Telegram. Envía /start a tu bot y "
                          "usa el botón '¿Cuál es mi chat_id?' del dashboard."),
     ("WALLET_XMR", "Wallet Monero para MoneroOcean/SupportXMR (cobro en "
-                   "XMR). Opcional si solo usas unMineable → BTC."),
+                   "XMR). DÉJALA VACÍA si no quieres wallet Monero: el "
+                   "motor minará solo unMineable y cobra en BTC (ideal "
+                   "para Binance, que NO acepta depósitos XMR)."),
     ("AGGRESSIVE_MODE", "true = daemon con motor agresivo multi-pool y "
                         "failover automático."),
     ("FAILOVER_MINUTES", "Minutos sin shares aceptados antes de saltar de "

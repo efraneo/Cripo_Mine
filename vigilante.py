@@ -23,10 +23,9 @@ import threading
 import time
 
 import control
-from config import DATA_DIR
+from config import BASE_DIR
 
-# DATA_DIR (no BASE_DIR/data): en la nube solo /tmp es escribible.
-WD_STATE_FILE = os.path.join(DATA_DIR, "watchdog_state.json")
+WD_STATE_FILE = os.path.join(BASE_DIR, "data", "watchdog_state.json")
 
 try:
     import psutil
@@ -161,14 +160,11 @@ class Watchdog(threading.Thread):
         if now.tm_hour == hour and state.get("last_summary") != today:
             state["last_summary"] = today
             _save_state(state)
-            st = self.get_status(include_earnings=True) or {}
+            st = self.get_status() or {}
             tot = st.get("totals") or {}
             eng = st.get("engine") or {}
             pay = st.get("payout") or {}
             um = (pay.get("unmineable") or {})
-            coin = pay.get("coin", "BTC")
-            acred = float(pay.get("binance_acred", 0) or 0)
-            total = float(pay.get("total_adquirido", 0) or 0)
             t = (eng.get("target") or {}).get("nombre", "—")
             self.send("\n".join([
                 "<b>RESUMEN DIARIO</b>",
@@ -176,8 +172,7 @@ class Watchdog(threading.Thread):
                 f"Shares OK hoy (histórico): {tot.get('shares_ok', 0)}",
                 f"Hashrate: {st.get('hashrate_txt', '—')}",
                 f"Uptime: {st.get('uptime_txt', '—')}",
-                f"🏦 En el pool: {um.get('balance', 0):.6f} {coin} "
-                f"(umbral {um.get('threshold', 0):g})",
-                f"✅ Ya en tu Binance Spot: {acred:.6f} {coin}",
-                f"💰 <b>TOTAL ADQUIRIDO: {total:.6f} {coin}</b>",
+                f"Balance unMineable: {um.get('balance', 0):.8f} BTC",
+                f"Depósitos BTC detectados: "
+                f"{pay.get('binance_total_btc', 0):.8f} BTC",
             ]), "info")
