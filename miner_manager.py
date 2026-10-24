@@ -148,9 +148,13 @@ class ExternalMiner:
         self.shares_rej = 0
         self.difficulty = 0.0
         self.last_line = ""
-        # regex estilo XMRig:  speed 10s/60s/15m: 12.3 kH/s ...
+        # regex estilo XMRig:
+        #   SHA-256/otros:  "speed 10s/60s/15m: 12.3 kH/s ..."
+        #   RandomX:        "speed 10s/60s/15m: 1234.5 1200.0 1180.0 H/s max: ..."
+        # Captura el primer número (vel. 10s) y el prefijo de escala OPCIONAL
+        # (RandomX reporta H/s directo sin k/M/G).
         self._re_speed = re.compile(
-            r"speed\s+10s/60s/15m[:\s]+([\d.]+)\s*([kKmMgG])H?/?s",
+            r"speed\s+10s/60s/15m[:\s]+([\d.]+)(?:\s+[\d.]+)*\s*([kKmMgG]?)H/?s",
             re.IGNORECASE)
         # regex estilo cpuminer/xmrig shares:  accepted: 12/34 (100%)  /  (1/1)
         self._re_shares = re.compile(r"\((\d+)/(\d+)\)")
@@ -273,13 +277,19 @@ class ExternalMiner:
         low = line.lower()
         m = self._re_speed.search(line)
         if m:
-            val, unit = float(m.group(1)), m.group(2).lower()
+            val = float(m.group(1))
+            unit = (m.group(2) or "").lower()
             mult = {"k": 1e3, "m": 1e6, "g": 1e9}.get(unit, 1.0)
             self.hashrate = val * mult
             return
+        # Fallback para mineros que no usan "speed 10s/60s/15m:" pero sí
+        # "XXX H/s". Solo aplica si la línea menciona "speed" explícitamente
+        # (evita capturar números de líneas de diagnóstico como huge pages,
+        # MSR, memoria, etc. que también contienen H/s).
         m = self._re_hps.search(line)
-        if m and ("speed" in low or "h/s" in low):
-            val, unit = float(m.group(1)), (m.group(2) or "").lower()
+        if m and "speed" in low:
+            val = float(m.group(1))
+            unit = (m.group(2) or "").lower()
             mult = {"k": 1e3, "m": 1e6, "g": 1e9}.get(unit, 1.0)
             self.hashrate = val * mult
         if self._re_acc.search(low):
@@ -316,11 +326,37 @@ class ExternalMiner:
         if not avisos and ("error" in low or "failed" in low):
             self.on_event("LOG: " + line[:200], "error")
 
+    def _poll_xmrig_api(self) -> dict | None:
+        """Consulta la API HTTP de XMRig (puerto 4068) para obtener
+        hashrate y dificultad directamente, sin depender del log.
+        Devuelve un dict con 'hashrate' y 'difficulty', o None si falla."""
+        try:
+            import urllib.request
+            url = "http://127.0.0.1:4068/2/summary"
+            with urllib.request.urlopen(url, timeout=2) as r:
+                import json as _json
+                data = _json.loads(r.read())
+            # XMRig API v2: {"hashrate":{"total":[10s, 60s, 15m, max]}, ...}
+            hr_total = (data.get("hashrate") or {}).get("total") or []
+            hr = float(hr_total[0] or 0) if hr_total else 0.0
+            # dificultad de la conexión actual
+            conn = (data.get("connection") or {})
+            diff = float(conn.get("diff") or 0)
+            return {"hashrate": hr, "difficulty": diff}
+        except Exception:
+            return None
+
     def _stats_loop(self, interval: float = 3.0):
         while not self._stop.is_set():
             time.sleep(interval)
             if self._stop.is_set():
                 break
+            # v3.9: intentar API HTTP de XMRig primero (más fiable que regex)
+            api = self._poll_xmrig_api()
+            if api and api["hashrate"] > 0:
+                self.hashrate = api["hashrate"]
+                if api["difficulty"] > 0:
+                    self.difficulty = api["difficulty"]
             cpu_pct = None
             if HAS_PSUTIL and self.proc:
                 try:

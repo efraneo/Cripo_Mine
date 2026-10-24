@@ -30,7 +30,9 @@ import time
 from config import DATA_DIR
 
 SALUD_FILE = os.path.join(DATA_DIR, "pool_salud.json")
-ZOMBI_COOLDOWN = 1200          # 20 min sin tocar un pool marcado zombi
+ZOMBI_COOLDOWN = 300           # 5 min sin tocar un pool marcado zombi
+                               # (v3.9: reducido de 20 min para detectar
+                               # recuperación de pools más rápido)
 HANDSHAKE_TIMEOUT = 5.0        # seg. para TODO el handshake stratum
 _LOCK = threading.Lock()
 

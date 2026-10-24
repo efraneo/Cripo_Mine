@@ -237,6 +237,7 @@ class AggressiveEngine:
         self.paused = False
         self.switch_log = deque(maxlen=60)
         self._stop = threading.Event()
+        self._lock = threading.Lock()          # v3.9: lock de instancia para _launch
         self._monitor = None
         self._restarts = 0
         self._last_shares_seen = -1
@@ -285,13 +286,25 @@ class AggressiveEngine:
 
     def relanzar(self, motivo: str = "hidra reoptimiza"):
         """Relanza el objetivo actual (lo usa la VIGÍA). v3.8: si el pool
-        actual está ZOMBI salta al primero que responda stratum real."""
+        actual está ZOMBI salta al primero que responda stratum real.
+        v3.9: throttle anti-bucle — si todos los pools siguen muertos no
+        relanza más de una vez cada 10 minutos."""
         if not self.current_target:
             return
         if pools_salud.probe_salud(self.current_target["url"],
                                    force=True) is None:
             if self.saltar_a_pool_viva(motivo + " (pool zombi)"):
                 return
+            # Todos los pools siguen muertos: throttle anti-bucle
+            ahora = time.time()
+            if ahora - self._ultimo_salto < 600:
+                self.on_event(
+                    f"Todos los pools siguen muertos. Próximo reintento "
+                    f"en {int(600 - (ahora - self._ultimo_salto))}s. "
+                    f"Agrega WALLET_XMR en secrets.toml para tener "
+                    f"MoneroOcean/SupportXMR como respaldo.", "warn")
+                return
+            self._ultimo_salto = ahora
         threads = control.read().get("threads") or self.cfg.get(
             "CPU_THREADS", 2)
         self._launch(self.current_target, motivo, int(threads))
@@ -389,7 +402,7 @@ class AggressiveEngine:
 
     # ------------------------------------------------------------------
     def _launch(self, target, reason: str, threads: int):
-        with threading.Lock():
+        with self._lock:
             if self.miner is not None:
                 try:
                     self.miner.stop()
