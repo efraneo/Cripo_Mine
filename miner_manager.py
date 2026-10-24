@@ -81,11 +81,32 @@ def write_xmrig_config(pool_url: str, user: str, password: str,
     `optima` (CABEZA FUEGO de la HIDRA) fusiona ajustes agresivos: huge-
     pages, huge-pages-jit, memory-pool, prioridad, randomx mode/wrmsr."""
     usa_tls = "ssl" in (pool_url or "").split("://")[0]
-    cpu = {"enabled": True, "hw-aes": None, "priority": None,
-           "max-threads-hint": max(1, int(threads)), "memory-pool": False}
+    n_threads = max(1, int(threads))
+    # Config base agresiva: huge-pages, jit, memory-pool y prioridad alta
+    # ya en el base — no depender de que optima llegue para activarlos.
+    cpu = {
+        "enabled": True,
+        "hw-aes": None,
+        "priority": 3,
+        "max-threads-hint": 100,   # 100% = todos los núcleos lógicos
+        "huge-pages": True,
+        "huge-pages-jit": True,
+        "memory-pool": True,
+        "yield": True,
+        "asm": True,
+    }
+    rx = {
+        "init": -1,
+        "mode": "fast",
+        "1gb-pages": False,
+        "rdmsr": True,
+        "wrmsr": True,
+        "numa": True,
+    }
     cfg = {
-        "autosave": True,
+        "autosave": False,        # no sobreescribir con defaults de xmrig
         "cpu": cpu,
+        "randomx": rx,
         "pools": [{
             "url": pool_url,
             "user": user,
@@ -94,21 +115,22 @@ def write_xmrig_config(pool_url: str, user: str, password: str,
             "nicehash": False,
             "tls": usa_tls,
             "keepalive": True,
+            "enabled": True,
         }],
-        "print-time": 5,
+        "print-time": 10,
+        "health-print-time": 60,
         "http": {"enabled": True, "host": "127.0.0.1", "port": 4068,
                  "access-token": None, "restricted": True},
     }
     if optima:
         try:
             cpu_opt = dict(optima.get("cpu") or {})
-            cpu_opt["max-threads-hint"] = max(1, int(threads))
-            # el nº de hilos del control manual manda sobre el hint de FUEGO
+            # max-threads-hint del control manual manda sobre FUEGO
+            cpu_opt["max-threads-hint"] = 100
             cfg["cpu"].update(cpu_opt)
             rx_opt = optima.get("randomx") or {}
             if rx_opt:
-                cfg["randomx"] = dict(rx_opt)
-            cpu_opt.pop("max-threads-hint", None)
+                cfg["randomx"].update(rx_opt)
         except Exception:
             pass
     os.makedirs(os.path.dirname(path), exist_ok=True)
