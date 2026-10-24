@@ -73,6 +73,9 @@ No es una fortuna, pero es flujo REAL, continuo, y llega a Binance solo.
 | `vigilante.py` | **V2**: pausa térmica, alertas de internet, resumen diario |
 | `control.py` | **V2**: canal de control app ↔ daemon ↔ Telegram (control.json) |
 | `panel_agresivo.py` | **V2**: pestaña del dashboard para el motor agresivo |
+| `recolectar_pool.py` | **V3.2**: recoge balances de pools/cadena/Binance y los lleva a Binance |
+| `sincronizar.py` | **V3.4**: sincronización automática local ↔ GitHub (pull/commit/push) |
+| `probar_ganancias.py` | **V3.5**: PRUEBA DE GANANCIAS en vivo (pool + BTC/día + ANTES vs AHORA) |
 | `stratum_miner.py` | Minero Stratum V1 SHA-256 nativo (pool / bench / demo) |
 | `miner_manager.py` | Gestor de binario externo (XMRig / cpuminer-opt) con parsing de logs |
 | `binance_api.py` | Cliente Binance: dirección de depósito, balances, depósitos, precio |
@@ -252,6 +255,42 @@ schtasks /Create /SC MINUTE /MO 30 /TN "CripoMine Sync" ^
 **Seguridad:** el `.gitignore` incluido excluye SIEMPRE
 `.streamlit/secrets.toml` (tus claves), `data/`, `logs/`, `bin/`,
 `__pycache__/` y `*.zip`. Tus secrets nunca se suben al repo.
+
+## 💸 PRUEBA DE GANANCIAS en Telegram (nuevo en v3.5)
+
+"¿Pásame el pool a Binance y pruébame cuánto más BTC puedo ganar ahora?"
+— Esto es lo que hace **`probar_ganancias.py`** con datos 100% reales:
+
+- **Tu hashrate medido por tu propio bot** (metrics_daemon.json; si nunca
+  ha minado, estima por tus núcleos y te dice que corras el bot primero).
+- **Saldo REAL del pool unMineable** (API v4) + % del umbral de pago
+  (0.00075 BTC) + **días estimados para el payout a tu Binance**.
+- **Matemática de la red Monero en vivo**: dificultad (Blockchair) →
+  hashrate de red, precio BTC (Binance) y XMR (Kraken) → BTC/día exactos.
+- **3 escenarios**: HOY · TODOS LOS NÚCLEOS · +HUGE PAGES/MSR (×1.30).
+- **La prueba honesta ANTES vs AHORA**: antes tu XMR iba a una wallet que
+  no podías abrir (BTC recibido: 0). Ahora en modo SOLO-BTC el 100% de lo
+  minado se acredita en BTC y vuela a tu Binance al cruzar el umbral.
+
+**Cuándo la ves en Telegram:**
+1. **Al arrancar el bot** (daemon) — mensaje inmediato con tu prueba.
+2. **Cuando quieras**: escribe `/ganancias` a tu bot.
+3. **Automático cada `EVIDENCIA_CADA_HORAS`** (default 6 h; 0 = apagado).
+
+**Manual (sin daemon):**
+```bash
+python probar_ganancias.py            # reporte completo + Telegram
+python probar_ganancias.py --tg-solo  # solo el resumen al celular
+python probar_ganancias.py --hashrate 1500   # fijar H/s a mano
+```
+
+Cada prueba deja copia en `data/prueba_ganancias_*.json` para que
+comparemos tu progreso semana a semana.
+
+**▶️ CORRER todo con un doble clic:** `CORRER_BOT.bat` = sincroniza con
+GitHub → verifica dependencias → arranca el daemon minero → abre el
+dashboard. Y `DETENER_TODO.bat` para parar todo (el saldo del pool NO se
+pierde: el pool paga al cruzar el umbral).
 
 ## 🐛 Solución de problemas
 

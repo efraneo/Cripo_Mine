@@ -35,6 +35,11 @@ V2 — INTERVENCIÓN AGRESIVA (motor multi-pool + Telegram + pagos):
     CPU_TEMP_MAX           → Pausa térmica automática (85 °C)
     DAILY_SUMMARY_HOUR     → Hora del resumen diario por Telegram (20)
     PAYOUT_ALERT_MIN_BTC   → Balance que dispara aviso de payout (0.0005)
+
+V3.5 — PRUEBA DE GANANCIAS:
+
+    EVIDENCIA_CADA_HORAS   → Cada cuántas horas el bot manda a Telegram
+                             la prueba de ganancias (6; 0 = desactivado)
 """
 import os
 import tempfile
@@ -108,6 +113,8 @@ DEFAULTS = {
     "CPU_TEMP_MAX": 85.0,
     "DAILY_SUMMARY_HOUR": 20,
     "PAYOUT_ALERT_MIN_BTC": 0.0005,
+    # --- v3.5: prueba de ganancias --------------------------------------
+    "EVIDENCIA_CADA_HORAS": 6,
 }
 
 
@@ -137,7 +144,8 @@ def load_secrets() -> dict:
         cfg["AUTO_REFRESH_SECONDS"] = 5
     # v2: tipos de los nuevos secrets
     for _k in ("FAILOVER_MINUTES", "ROTATE_MINUTES", "CPU_TEMP_MAX",
-               "DAILY_SUMMARY_HOUR", "PAYOUT_ALERT_MIN_BTC"):
+               "DAILY_SUMMARY_HOUR", "PAYOUT_ALERT_MIN_BTC",
+               "EVIDENCIA_CADA_HORAS"):
         try:
             cfg[_k] = float(cfg[_k])
         except Exception:
@@ -324,4 +332,7 @@ SECRETS_HELP = [
                            "Telegram (default 20)."),
     ("PAYOUT_ALERT_MIN_BTC", "Balance en el pool (BTC) que dispara el aviso "
                              "'payout en camino' por Telegram."),
+    ("EVIDENCIA_CADA_HORAS", "Cada cuántas horas el daemon manda a Telegram "
+                             "la PRUEBA DE GANANCIAS (saldo del pool, % del "
+                             "umbral y BTC/día proyectado). 0 = apagado."),
 ]

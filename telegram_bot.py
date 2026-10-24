@@ -14,7 +14,9 @@ Comandos que el bot entiende (solo desde tu chat configurado):
   /pausar   → pausa el minero (ideal cuando necesitas la CPU)
   /reanudar → vuelve a minar
   /cambiar  → fuerza el failover al siguiente pool
-  /ganancias→ balances de pools + últimos depósitos en Binance
+  /ganancias→ PRUEBA DE GANANCIAS en vivo: saldo del pool, % del
+             umbral de pago, cuánto BTC/día puedes ganar (3 escenarios)
+             y la comparativa honesta ANTES vs AHORA
   /apagar   → APAGA TODO: daemon + xmrig + este bot (v3.2)
   /ayuda    → lista de comandos
 
@@ -230,24 +232,30 @@ class TelegramController(threading.Thread):
             control.write(force_target="next", updated_by="telegram")
             send(self.cfg, "Failover forzado al siguiente pool…", "info")
         elif cmd == "/ganancias":
-            st = self.get_status(include_earnings=True)
-            pay = st.get("payout") or {}
-            um = pay.get("unmineable") or {}
-            mo = pay.get("moneroocean") or {}
-            deps = pay.get("binance_total_btc", 0.0)
-            lines = ["<b>GANANCIAS</b>"]
-            if um:
-                lines.append(
-                    f"unMineable: <b>{um.get('balance', 0):.8f}</b> BTC "
-                    f"sin pagar (pagable {um.get('balance_payable', 0):.8f}"
-                    + (f", umbral pool {um.get('threshold', 0):.5f}"
-                       if um.get("threshold") else "") + ")")
-            if mo:
-                lines.append(f"MoneroOcean: <b>{mo.get('due_xmr', 0):.6f}"
-                             f"</b> XMR pendientes")
-            lines.append(f"Depósitos BTC vistos en Binance: "
-                         f"<b>{deps:.8f}</b> BTC")
-            send(self.cfg, "\n".join(lines), "money")
+            # PRUEBA DE GANANCIAS completa (datos en vivo + proyección)
+            try:
+                import probar_ganancias
+                probar_ganancias.enviar_prueba(self.cfg, motivo="comando")
+            except Exception as e:                 # noqa: BLE001
+                # Fallback: resumen ligero con los datos del daemon
+                st = self.get_status(include_earnings=True)
+                pay = st.get("payout") or {}
+                um = pay.get("unmineable") or {}
+                mo = pay.get("moneroocean") or {}
+                deps = pay.get("binance_total_btc", 0.0)
+                lines = [f"<b>GANANCIAS</b> (modo ligero: {e})"]
+                if um:
+                    lines.append(
+                        f"unMineable: <b>{um.get('balance', 0):.8f}</b> BTC "
+                        f"sin pagar (pagable {um.get('balance_payable', 0):.8f}"
+                        + (f", umbral pool {um.get('threshold', 0):.5f}"
+                           if um.get("threshold") else "") + ")")
+                if mo:
+                    lines.append(f"MoneroOcean: <b>{mo.get('due_xmr', 0):.6f}"
+                                 f"</b> XMR pendientes")
+                lines.append(f"Depósitos BTC vistos en Binance: "
+                             f"<b>{deps:.8f}</b> BTC")
+                send(self.cfg, "\n".join(lines), "money")
         elif cmd in ("/apagar", "/stop", "/cerrar"):
             control.write(action="stop", updated_by="telegram")
             send(self.cfg, "<b>APAGADO TOTAL</b> en marcha: cerrando el "
@@ -261,7 +269,8 @@ class TelegramController(threading.Thread):
                 "/pausar — detiene el minado (la CPU queda libre)\n"
                 "/reanudar — vuelve a minar\n"
                 "/cambiar — fuerza failover al siguiente pool\n"
-                "/ganancias — balances y depósitos\n"
+                "/ganancias — PRUEBA: saldo del pool + cuánto "
+                "BTC/día puedes ganar\n"
                 "/apagar — APAGA TODO (daemon + xmrig + bot)\n"
                 "/ayuda — esta lista"), "info")
         else:

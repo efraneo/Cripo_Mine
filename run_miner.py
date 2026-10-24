@@ -17,6 +17,9 @@ modo python del dashboard para no pisarse). Log: logs/daemon.log.
 Parada amable: escribe {"action": "stop"} en data/control.json (botón
 Detener del dashboard o /apagar por Telegram), o Ctrl+C. Al apagar se
 cierran además los binarios huérfanos (xmrig.exe) vía miner_manager.
+
+v3.5: al arrancar manda la PRUEBA DE GANANCIAS a Telegram (saldo del
+pool + BTC/día proyectado) y la repite cada EVIDENCIA_CADA_HORAS.
 """
 import argparse
 import os
@@ -48,6 +51,7 @@ from payout_manager import PayoutWatcher  # noqa: E402
 from vigilante import Watchdog       # noqa: E402
 from binance_api import make_binance  # noqa: E402
 from miner_manager import matar_mineros_huerfanos  # noqa: E402
+import probar_ganancias  # noqa: E402
 
 
 def log(msg: str, level: str = "info"):
@@ -163,8 +167,23 @@ def main():
     wd.start()
     tctrl.start()
     tg.msg_daemon_started(cfg, get_status())
+    # v3.5: PRUEBA DE GANANCIAS inmediata — en tu Telegram verás el saldo
+    # del pool, el % del umbral y cuánto BTC/día puedes ganar.
+    try:
+        probar_ganancias.enviar_prueba(cfg, motivo="arranque")
+        log("Prueba de ganancias enviada a Telegram (/ganancias para "
+            "repetirla cuando quieras)", "ok")
+    except Exception as e:                              # noqa: BLE001
+        log(f"Prueba de ganancias no enviada: {e}", "warn")
     log("Daemon agresivo en marcha (Ctrl+C o botón Detener para parar)",
         "ok")
+
+    horas = 0.0
+    try:
+        horas = float(cfg.get("EVIDENCIA_CADA_HORAS") or 0)
+    except (TypeError, ValueError):
+        horas = 0.0
+    next_ev = time.time() + horas * 3600 if horas > 0 else 0.0
 
     stop_reason = ""
     try:
@@ -175,6 +194,14 @@ def main():
             if ctrl.get("action") == "stop":
                 stop_reason = "orden de parada (dashboard/Telegram)"
                 break
+            if next_ev and time.time() >= next_ev:
+                try:
+                    probar_ganancias.enviar_prueba(cfg, motivo="periodica")
+                    log("Evidencia periódica de ganancias enviada a "
+                        "Telegram", "info")
+                except Exception:                       # noqa: BLE001
+                    pass
+                next_ev = time.time() + horas * 3600
     except KeyboardInterrupt:
         stop_reason = "Ctrl+C"
     shutdown(stop_reason)
