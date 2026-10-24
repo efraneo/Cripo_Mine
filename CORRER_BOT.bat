@@ -1,7 +1,9 @@
 @echo off
 REM ============================================================
-REM  CORRER_BOT.bat - Cripo_Mine (Windows)  [v3.5]
+REM  CORRER_BOT.bat - Cripo_Mine (Windows)  [v3.6]
 REM  Doble clic = bot minando + pruebas + dashboard:
+REM    0) PIDE ADMINISTRADOR SOLO (necesario para el mod MSR:
+REM       sin el MSR el hashrate cae a menos de la mitad)
 REM    1) sincroniza con GitHub (si hay algo nuevo, baja; si
 REM       tu carpeta tiene cambios, los sube)  <- opcional, si falla sigue
 REM    2) verifica dependencias (pip install)
@@ -12,11 +14,19 @@ REM  PRUEBA DE GANANCIAS (saldo del pool + BTC/dia proyectado).
 REM  Para DETENER todo: doble clic en DETENER_TODO.bat
 REM ============================================================
 setlocal
+REM ---- [0] Auto-elevacion a ADMINISTRADOR (acepta la ventanita UAC) ----
+net session >nul 2>&1
+if %errorlevel% neq 0 (
+    echo   Solicitando permisos de ADMINISTRADOR...
+    echo   ^(necesarios para el mod MSR: mas del doble de hashrate en Ryzen^)
+    powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -Verb RunAs"
+    exit /b
+)
 cd /d "%~dp0"
 title CORRER BOT - Cripo_Mine
 echo.
 echo   ==============================================
-echo    CORRER EL BOT  -  Cripo_Mine v3.5
+echo    CORRER EL BOT  -  Cripo_Mine v3.6 (ADMIN ✔)
 echo    Carpeta: %CD%
 echo   ==============================================
 echo.

@@ -28,6 +28,43 @@ except Exception:
 XMRIG_CONFIG_FILE = os.path.join(DATA_DIR, "xmrig_config.json")
 
 
+# ---------------------------------------------------------------------------
+# v3.6: traducción de mensajes conocidos de XMRig a CONSEJOS ACCIONABLES.
+# En vez de mostrar el log seco ("FAILED TO APPLY MSR MOD"), el daemon
+# explica en consola y Telegram qué hacer exactamente. Cada aviso se emite
+# UNA sola vez por corrida del minero (no spamear).
+# ---------------------------------------------------------------------------
+AVISO_MSR = (
+    "MSR MOD NO APLICADO → estás minando a MENOS DE LA MITAD de tu "
+    "potencial (en AMD Ryzen esto casi DUPLICA el hashrate; en Intel suma "
+    "15-40%). SOLUCIÓN (1 minuto): cierra todo con DETENER_TODO.bat y "
+    "vuelve a abrir CORRER_BOT.bat — ahora pide permisos de ADMINISTRADOR "
+    "solo: acepta la ventanita de Windows (UAC). Si aun así reaparece, "
+    "agrega en Windows Defender una exclusión para la carpeta "
+    "bin\\xmrig-mo (el antivirus bloquea el driver que usa xmrig).")
+AVISO_HUGEPAGES = (
+    "HUGE PAGES incompletas → hashrate reducido ~10-30%. SOLUCIÓN: corre "
+    "el bot como ADMINISTRADOR (CORRER_BOT.bat ya lo pide al inicio). "
+    "Si tras aceptar la ventanita sigue incompleto, reinicia Windows una "
+    "vez: eso desfragmenta la memoria reservada y xmrig completa las "
+    "páginas.")
+AVISO_CONEXION = (
+    "Error de conexión con el pool: no toques nada, el motor repite solo "
+    "y si el pool sigue mal el FAILOVER cambia de pool automáticamente.")
+
+
+def es_admin() -> bool:
+    """True si el proceso corre con permisos de administrador.
+    En no-Windows devuelve True (el aviso de MSR no aplica igual)."""
+    if os.name != "nt":
+        return True
+    try:
+        import ctypes
+        return bool(ctypes.windll.shell32.IsUserAnAdmin())
+    except Exception:
+        return False
+
+
 def write_xmrig_config(pool_url: str, user: str, password: str,
                        threads: int, path: str = XMRIG_CONFIG_FILE) -> str:
     """Genera un config.json mínimo y válido para XMRig (docs: xmrig.com/docs/miner/config/pool)."""
@@ -92,6 +129,9 @@ class ExternalMiner:
         self._re_rej = re.compile(r"rejected", re.IGNORECASE)
         self._re_diff = re.compile(r"difficulty[:\s]+([\d.]+)", re.IGNORECASE)
         self._re_hps = re.compile(r"([\d.]+)\s*([kKmMgG]?)H/s", re.IGNORECASE)
+        self._re_huge = re.compile(r"huge pages\s+(\d+)%/100%",
+                                   re.IGNORECASE)
+        self._avisos_dados: set = set()      # v3.6: cada consejo 1 sola vez
 
     # ------------------------------------------------------------------
     def _build_command(self) -> list:
@@ -171,6 +211,20 @@ class ExternalMiner:
             self.on_event("El minero externo terminó inesperadamente", "error")
             self._stop.set()
 
+    def _avisos_conocidos(self, line: str) -> list:
+        """(clave, nivel, consejo) para mensajes conocidos de xmrig."""
+        low = line.lower()
+        out = []
+        if "failed to apply msr mod" in low:
+            out.append(("msr", "warn", AVISO_MSR))
+        if (self._re_huge.search(line) and
+                int(self._re_huge.search(line).group(1)) < 100) or \
+                "huge pages unavailable" in low:
+            out.append(("huge", "warn", AVISO_HUGEPAGES))
+        if "connection error" in low or "connect error" in low:
+            out.append(("conn", "warn", AVISO_CONEXION))
+        return out
+
     def _parse_line(self, line: str):
         low = line.lower()
         m = self._re_speed.search(line)
@@ -207,7 +261,15 @@ class ExternalMiner:
                 self.difficulty = float(m.group(1))
             except ValueError:
                 pass
-        if "error" in low or "failed" in low:
+        # v3.6: primero los consejos accionables (cada uno 1 sola vez)
+        avisos = self._avisos_conocidos(line)
+        for key, nivel, consejo in avisos:
+            if key not in self._avisos_dados:
+                self._avisos_dados.add(key)
+                self.on_event(consejo, nivel)
+        # El resto de errores sigue al log genérico (sin duplicar los ya
+        # traducidos a consejo)
+        if not avisos and ("error" in low or "failed" in low):
             self.on_event("LOG: " + line[:200], "error")
 
     def _stats_loop(self, interval: float = 3.0):

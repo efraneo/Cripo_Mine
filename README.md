@@ -302,6 +302,9 @@ pierde: el pool paga al cruzar el umbral).
 | Latencia/401 en Binance | Revisa claves y whitelist de IP del panel de Binance |
 | El minero externo no arranca | Revisa `EXTERNAL_MINER_PATH` (ruta absoluta) |
 | Demasiado CPU al minar | Baja `CPU_THREADS` a 1 o usa el modo bench |
+| `msr FAILED TO APPLY MSR MOD` (v3.6) | El bot mina a MENOS DE LA MITAD: cierra con `DETENER_TODO.bat` y abre `CORRER_BOT.bat` — pide ADMINISTRADOR solo (acepta la ventanita UAC). Si reaparece: exclusión en Windows Defender para la carpeta `bin\xmrig-mo`. En Ryzen esto casi DUPLICA el hashrate |
+| `huge pages` incompletas | Mismo remedio: administrador. Si sigue, reinicia Windows una vez (libera memoria fragmentada) |
+| Aviso "Hashrate limitado" en Telegram | El daemon arrancó sin administrador. Ciérralo y reabre con `CORRER_BOT.bat` (la auto-elevación de v3.6 lo evita) |
 
 ## 🔗 Infraestructura y repos de referencia
 

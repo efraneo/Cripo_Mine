@@ -50,7 +50,7 @@ from aggressive_engine import AggressiveEngine, TARGETS  # noqa: E402
 from payout_manager import PayoutWatcher  # noqa: E402
 from vigilante import Watchdog       # noqa: E402
 from binance_api import make_binance  # noqa: E402
-from miner_manager import matar_mineros_huerfanos  # noqa: E402
+from miner_manager import matar_mineros_huerfanos, es_admin  # noqa: E402
 import probar_ganancias  # noqa: E402
 
 
@@ -115,6 +115,18 @@ def validate_environment() -> bool:
     if not tg.configured(cfg):
         log("Telegram sin configurar: habrá alertas en el log pero no en tu "
             "celular", "warn")
+    # v3.6: sin administrador, xmrig no aplica el mod MSR y el hashrate se
+    # queda a menos de la mitad (sobre todo en AMD Ryzen).
+    if os.name == "nt" and not es_admin():
+        log("SIN PERMISOS DE ADMINISTRADOR: el mod MSR no se aplicará y el "
+            "hashrate será menor. Cierra el bot (DETENER_TODO.bat) y corre "
+            "CORRER_BOT.bat aceptando la ventanita de Windows.", "warn")
+        tg.send(cfg, "<b>Hashrate limitado</b>: el bot NO está corriendo "
+                     "como ADMINISTRADOR, así que xmrig no puede aplicar el "
+                     "mod MSR y minarás a menos de la mitad de tu "
+                     "potencial. Cierra con DETENER_TODO.bat y vuelve a "
+                     "abrir CORRER_BOT.bat aceptando la ventanita de "
+                     "Windows (UAC).", "warn")
     return True
 
 
