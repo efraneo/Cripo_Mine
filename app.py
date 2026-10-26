@@ -19,6 +19,7 @@ from pool_stats import (get_price, network_stats, estimate_profitability,
                         f2pool_stats, nicehash_stats)
 import ui_components as ui
 import panel_agresivo
+import hidra as hidra_page
 
 st.set_page_config(page_title="⛏️ BTC Miner Studio", page_icon="⛏️",
                    layout="wide", initial_sidebar_state="expanded")
@@ -193,9 +194,9 @@ with st.sidebar:
 # ---------------------------------------------------------------------------
 # TABS
 # ---------------------------------------------------------------------------
-tab_live, tab_agro, tab_net, tab_bin, tab_hist, tab_help = st.tabs(
-    ["📊 Panel en vivo", "🚀 Motor agresivo", "🌐 Red y Pool", "🏦 Binance",
-     "📜 Historial y logs", "⚙️ Ayuda y Secrets"])
+tab_live, tab_agro, tab_hidra, tab_net, tab_bin, tab_hist, tab_help = st.tabs(
+    ["📊 Panel en vivo", "🚀 Motor agresivo", "🐉 Hidra 2.0", "🌐 Red y Pool",
+     "🏦 Binance", "📜 Historial y logs", "⚙️ Ayuda y Secrets"])
 
 
 # ===========================================================================
@@ -259,6 +260,16 @@ with tab_live:
 # ===========================================================================
 with tab_agro:
     panel_agresivo.render(RT, CFG)
+
+
+# ===========================================================================
+# PESTAÑA 2b · HIDRA 2.0 (v4.0: salud de pools en vivo + matemática real)
+# ===========================================================================
+with tab_hidra:
+    try:
+        hidra_page.render(RT, CFG)
+    except Exception as e:                      # noqa: BLE001
+        st.error(f"Hidra no disponible ahora: {e}")
 
 
 # ===========================================================================

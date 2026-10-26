@@ -103,9 +103,32 @@ def get_status(include_earnings: bool = False) -> dict:
 
 # ---------------------------------------------------------------------------
 def validate_environment() -> bool:
-    """Sin direcciones no hay pipeline: avisa y aborta con instrucciones."""
+    """Sin direcciones no hay pipeline. v4.0: si no hay NI dirección BTC
+    NI wallet XMR, se genera una wallet Monero OFFLINE (wallet_monero)
+    en vez de abortar — así el hashrate empieza YA contra los pools
+    vivos. La wallet del usuario en secrets siempre tiene prioridad."""
     has_btc = bool((cfg.get("BTC_PAYOUT_ADDRESS") or "").strip())
     has_xmr = bool((cfg.get("WALLET_XMR") or "").strip())
+    if not has_btc and not has_xmr:
+        try:
+            import wallet_monero
+            addr, creada = wallet_monero.ensure_wallet(
+                cfg, on_event=lambda m, l="info": log(m, l))
+            has_xmr = bool(addr)
+            if creada:
+                log(f"Wallet Monero generada OFFLINE: {addr}", "ok")
+                log("REVISAR data/wallet_emergencia.json y RESPALDARLA "
+                    "(quien tenga ese archivo cobra). Para usar TU wallet "
+                    "ponla en secrets.toml como WALLET_XMR.", "warn")
+                tg.send(cfg, "<b>Wallet Monero creada (offline)</b>\n"
+                             f"<code>{addr}</code>\n"
+                             "Respalda <code>data/"
+                             "wallet_emergencia.json</code> — quien la "
+                             "tenga cobra los XMR. Si prefieres TU wallet, "
+                             "ponla en secrets como WALLET_XMR y reinicia.",
+                        "warn")
+        except Exception as e:                          # noqa: BLE001
+            log(f"Auto-wallet no pudo crearse: {e}", "error")
     if not (has_btc or has_xmr):
         log("FALTAN DIRECCIONES: pon BTC_PAYOUT_ADDRESS (para cobrar en BTC "
             "vía unMineable) o WALLET_XMR (MoneroOcean/SupportXMR) en "
@@ -113,6 +136,12 @@ def validate_environment() -> bool:
         tg.send(cfg, "<b>No puedo arrancar</b>: falta BTC_PAYOUT_ADDRESS o "
                      "WALLET_XMR en secrets.", "error")
         return False
+    if not has_btc and has_xmr:
+        # v4.0: los pools BTC-directos (unMineable) están zombis hoy; con
+        # solo XMR el daemon mina en pools VIVOS y acumula XMR.
+        log("Sin dirección BTC: mino XMR en los pools vivos "
+            "(MoneroOcean/xmrpool.eu/SupportXMR). Cuando unMineable "
+            "reviva, el motor vuelve solo al pago BTC→Binance.", "info")
     if not tg.configured(cfg):
         log("Telegram sin configurar: habrá alertas en el log pero no en tu "
             "celular", "warn")

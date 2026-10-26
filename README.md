@@ -350,6 +350,45 @@ los caminos para lograrlo (HIDRA al máximo, más PCs, hardware mayor).
 ZergPool también aparece en `probar_ganancias` y `recolectar_pool`.
 
 
+## 🚀 v4.1 — SONDEO EN VIVO + TUNING RANDOMX (27-10-2026, noche)
+
+**Sondeo real de pools a las 20:47 UTC** (handshake stratum completo, no
+solo ping — así ya no engaña un pool que acepta TCP y no responde):
+
+| Estado | Pool | Detalle |
+|---|---|---|
+| ✅ VIVO | MoneroOcean `:10128` | 79 ms — **objetivo #1** (auto-algoritmo = max profit) |
+| ✅ VIVO | SupportXMR `:3333` | 81 ms — respaldo |
+| ✅ VIVO | xmrpool.eu `:9999` | 472 ms — respaldo |
+| 💀 ZOMBI | unMineable `:3333/:443` | TCP sí, stratum mudo; se re-sondea solo |
+| 💀 MUERTO | Kryptex `:7029` | 0 bytes |
+| 💀 SIN DNS | ZergPool | el dominio ya no resuelve |
+| 💀 SIN DNS | NiceHash | además exige cuenta propia → no automatizable |
+
+**Tuning de hashrate (FUEGO v4.1)**: `randomx.mode` ahora es **AUTO** en vez
+de `fast` fijo. El modo fast exige 2 MB de caché L3 **por hilo**; forzarlo
+en CPUs con poca L3 BAJABA el hashrate sin que se note. Con `auto`, xmrig
+elige fast o light según la caché REAL de tu CPU → siempre el óptimo
+(docs: xmrig.com/docs/miner/config/randomx). Lo demás ya estaba a tope:
+huge-pages + huge-pages-jit, memory-pool, prioridad, MSR (rdmsr/wrmsr),
+scratchpad prefetch, NUMA.
+
+**Cómo cobras el XMR de los pools vivos** (recordatorio honesto: Binance
+declasó XMR en 2024 — no existe dirección de depósito XMR en Binance):
+1. El pool te paga a tu `WALLET_XMR` (si no la pusiste, el bot genera una
+   offline y te avisa por Telegram — RESPALDA `data/wallet_emergencia.json`).
+2. Cambias XMR→BTC donde aún cotiza (Kraken, por ejemplo) o con un swap.
+3. El BTC entra a tu Binance como siempre.
+Cuando unMineable reviva, el canal BTC-directo se reactiva solo (está
+último en el catálogo a la espera) y ese paso 2 desaparece.
+
+**Extra v4.1.1 — último 1% de hashrate**: `donate-level` 0 (el 1% que xmrig
+donaba al autor ahora es TUYO) y `1gb-pages` activado. Para que las 1GB
+pages funcionen en Windows: clic derecho en `paginas_1gb.ps1` → "Ejecutar
+con PowerShell" (concede el privilegio "Lock pages in memory") y reinicia
+el PC una vez. Si no lo haces, no pasa nada: xmrig cae automáticamente a
+las 2MB huge pages y mina igual.
+
 ## 🐲 LA HIDRA — 5 cabezas de agresividad (nuevo en v3.7)
 
 La hidra es el sistema que **recupera la agresividad perdida** y blinda el
@@ -358,7 +397,7 @@ minado 24/7. Despierta sola al arrancar el daemon (CORRER_BOT.bat) y sus
 
 | Cabeza | Qué hace |
 |---|---|
-| 🔥 **FUEGO** | Reconfigura xmrig a MÁXIMO: hilos óptimos según tu CPU, huge pages + huge-pages-jit (boost Ryzen), memory-pool persistente, prioridad de hilos y `randomx mode fast` (docs xmrig.com/docs/miner/config/cpu) |
+| 🔥 **FUEGO** | Reconfigura xmrig a MÁXIMO: hilos óptimos según tu CPU, huge pages + huge-pages-jit (boost Ryzen), memory-pool persistente, prioridad de hilos y `randomx mode auto` (v4.1: el óptimo real según la caché L3 de TU CPU — docs xmrig.com/docs/miner/config/cpu) |
 | 🛡 **ESCUDO** | Agrega en Windows Defender las exclusiones **CORRECTAS** (docs Microsoft Add-MpPreference): carpeta `bin\` + ruta EXACTA del `xmrig.exe` + proceso `xmrig.exe`. La excepción de carpeta sola NO evita la cuarentena — por eso xmrig “desaparecía” aunque la tuvieras |
 | ⚕ **MÉDICO** | Resucita xmrig.exe: si Defender lo borró lo **restaura de la cuarentena** (`MpCmdRun -Restore -All`) y si ya no hay nada lo **re-descarga solo** (fork MoneroOcean → oficial) |
 | 👁 **VIGÍA** | Vigila el hashrate contra tu RÉCORD histórico (`data/hidra_state.json`); si cae más de `HIDRA_CAIDA_PCT` (35%) varias rondas seguidas → diagnostica (¿Defender? ¿binario borrado?), repara y relanza con la config óptima. Avisa por Telegram |

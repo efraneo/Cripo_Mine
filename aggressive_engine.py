@@ -38,66 +38,12 @@ OFFICIAL_WINDOWS = ("https://github.com/xmrig/xmrig/releases/download/"
 
 STATE_FILE = os.path.join(BASE_DIR, "data", "engine_state.json")
 
-# Catálogo v3.9: BTC directo primero, XMR de respaldo (requiere WALLET_XMR)
-def _user_unmineable(cfg, worker):
-    addr = (cfg.get("BTC_PAYOUT_ADDRESS") or "").strip()
-    if not addr:
-        raise ValueError("Falta BTC_PAYOUT_ADDRESS (necesaria para que "
-                         "unMineable pague en BTC a tu Binance)")
-    return f"BTC:{addr}.{(worker or 'cpu01').strip() or 'cpu01'}"
-
-
-def _user_btc_addr(cfg, worker):
-    """ZergPool (familia Yiimp): usuario = tu dirección BTC tal cual."""
-    addr = (cfg.get("BTC_PAYOUT_ADDRESS") or "").strip()
-    if not addr:
-        raise ValueError("Falta BTC_PAYOUT_ADDRESS (ZergPool paga en BTC "
-                         "directo a tu Binance)")
-    return addr
-
-
-def _pass_zerg(cfg, worker):
-    """Password Yiimp: c=moneda de pago, ID=worker para estadísticas."""
-    return f"c=BTC,ID={(worker or 'cpu01').strip() or 'cpu01'}"
-
-
-def _user_wallet(cfg, worker):
-    w = (cfg.get("WALLET_XMR") or "").strip()
-    if not w:
-        raise ValueError("Falta WALLET_XMR (wallet Monero para "
-                         "MoneroOcean/Kryptex/SupportXMR)")
-    return w
-
-
-def _user_kryptex(cfg, worker):
-    """Kryptex usa formato wallet/worker."""
-    return f"{_user_wallet(cfg, worker)}/{(worker or 'cpu01') or 'cpu01'}"
-
-
-def _t(id_, nombre, url, algo, pago, user_fn, pass_fn=None):
-    return {"id": id_, "nombre": nombre, "url": url, "algo": algo,
-            "pago": pago, "user_fn": user_fn, "pass_fn": pass_fn}
-
-
-TARGETS = [
-    _t("unmineable", "unMineable (paga en BTC directo a Binance)",
-       "rx.unmineable.com:3333", "rx/0", "BTC", _user_unmineable),
-    _t("unmineable-ssl", "unMineable SSL (mismo pool, cifrado :443)",
-       "stratum+ssl://rx.unmineable.com:443", "rx/0", "BTC",
-       _user_unmineable),
-    _t("zergpool", "ZergPool (BTC directo a Binance, sin registro)",
-       "rx.mine.zergpool.com:5354", "rx/0", "BTC", _user_btc_addr,
-       _pass_zerg),
-    _t("zergpool-eu", "ZergPool EU (BTC directo, sin registro)",
-       "rx.eu.mine.zergpool.com:5354", "rx/0", "BTC", _user_btc_addr,
-       _pass_zerg),
-    _t("moneroocean", "MoneroOcean (auto-cambio de algoritmo, paga XMR)",
-       "gulf.moneroocean.stream:10128", "auto", "XMR", _user_wallet),
-    _t("kryptex", "Kryptex XMR (respaldo, paga XMR, umbral bajo)",
-       "xmr.kryptex.network:7029", "rx/0", "XMR", _user_kryptex),
-    _t("supportxmr", "SupportXMR (respaldo veterano, paga XMR)",
-       "pool.supportxmr.com:3333", "rx/0", "XMR", _user_wallet),
-]
+# Catálogo v4.0 vive en pools_catalog.py (pools verificados con
+# handshake stratum REAL el 27-10-2026: MoneroOcean / xmrpool.eu /
+# SupportXMR VIVOS; unMineable ZOMBI al final; ZergPool eliminado —
+# su dominio ya no existe en DNS). Re-exportado por compatibilidad:
+# run_miner, supervisora_1h, panel_agresivo y bat importan TARGETS aquí.
+from pools_catalog import TARGETS  # noqa: E402,F401
 
 
 # Utilidades
@@ -255,14 +201,38 @@ class AggressiveEngine:
             return default
 
     def targets_available(self) -> list:
-        """Objetivos cuyas credenciales (dirección BTC / wallet XMR) están."""
+        """Objetivos cuyas credenciales (dirección BTC / wallet XMR) están.
+        v4.0: si falta WALLET_XMR se genera UNA wallet Monero OFFLINE
+        (wallet_monero.ensure_wallet) — así los pools vivos (MoneroOcean,
+        xmrpool.eu, SupportXMR) siempre son minables y el hashrate nunca
+        se queda en 0 'por falta de wallet'. La wallet del usuario en
+        secrets SIEMPRE tiene prioridad."""
+        auto_wallet_probada = False
         out = []
         for t in TARGETS:
             try:
                 t["_user"] = t["user_fn"](self.cfg, "probe")
                 out.append(t)
             except ValueError:
-                t["_user"] = ""
+                if not auto_wallet_probada:
+                    auto_wallet_probada = True
+                    try:
+                        import wallet_monero
+                        addr, creada = wallet_monero.ensure_wallet(
+                            self.cfg, self.on_event)
+                        if creada:
+                            self.on_event(
+                                f"WALLET_XMR generada offline "
+                                f"({addr[:12]}…) para desbloquear los "
+                                f"pools vivos; respalda data/"
+                                f"wallet_emergencia.json", "ok")
+                    except Exception as e:              # noqa: BLE001
+                        self.on_event(f"Auto-wallet falló: {e}", "warn")
+                try:
+                    t["_user"] = t["user_fn"](self.cfg, "probe")
+                    out.append(t)
+                except ValueError:
+                    t["_user"] = ""
         return out
 
     def _wrap_share(self):
@@ -276,7 +246,7 @@ class AggressiveEngine:
         pass_fn = target.get("pass_fn") or (lambda c, w: "x")
         return ExternalMiner(
             binary_path=self.binary_path,
-            extra_args="--no-color --donate-level=1",
+            extra_args="--no-color --donate-level=0",
             pool_url=target["url"], user=user,
             password=pass_fn(self.cfg, "cpu01"),
             threads=threads,

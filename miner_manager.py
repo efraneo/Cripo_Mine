@@ -97,14 +97,19 @@ def write_xmrig_config(pool_url: str, user: str, password: str,
     }
     rx = {
         "init": -1,
-        "mode": "fast",
-        "1gb-pages": False,
+        # v4.1: AUTO (xmrig elige fast/light según la caché L3 REAL de la
+        # CPU; forzar fast con poca L3 baja el hashrate)
+        "mode": "auto",
+        # v4.1.1: 1GB pages ON — si falta el privilegio "Lock pages in
+        # memory", xmrig avisa y cae a 2MB huge pages (sin riesgo)
+        "1gb-pages": True,
         "rdmsr": True,
         "wrmsr": True,
         "numa": True,
     }
     cfg = {
         "autosave": False,        # no sobreescribir con defaults de xmrig
+        "donate-level": 0,        # v4.1.1: 0% donación → +1% minado real
         "cpu": cpu,
         "randomx": rx,
         "pools": [{

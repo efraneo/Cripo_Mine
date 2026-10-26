@@ -78,7 +78,7 @@ except:
     target_id = 'moneroocean'
 
 from aggressive_engine import TARGETS
-target = next((t for t in TARGETS if t['id']==target_id), TARGETS[4])
+target = next((t for t in TARGETS if t['id']==target_id), TARGETS[0])  # v4.0: moneroocean (VIVO) es el default, no unMineable
 try:
     user = target['user_fn'](cfg, 'cpu01')
     passw_fn = target.get('pass_fn')

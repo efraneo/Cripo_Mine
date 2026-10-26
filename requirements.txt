@@ -3,3 +3,4 @@ plotly>=5.22
 pandas>=2.0
 requests>=2.31
 psutil>=5.9
+pycryptodome>=3.20

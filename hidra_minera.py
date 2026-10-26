@@ -106,8 +106,9 @@ def config_optima(cfg: dict) -> dict:
                                            # reinicios de hilos (docs xmrig)
         },
         "randomx": {
-            "mode": "fast" if info.get("ram_gb", 0) >= 6 else "light",
-            "1gb-pages": False,            # solo Linux; en Windows no aplica
+            # v4.1: AUTO = xmrig elige fast/light según la caché L3 real
+            "mode": "auto",
+            "1gb-pages": True,             # v4.1.1: cae a 2MB si falta el privilegio
             "rdmsr": True,
             "wrmsr": True,                 # el MOD MSR: requiere ADMIN
             "numa": True,

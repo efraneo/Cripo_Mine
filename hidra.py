@@ -24,7 +24,10 @@ import streamlit as st
 import requests
 
 from config import DATA_DIR, format_hashrate
-from aggressive_engine import TARGETS, stratum_ok
+from pools_catalog import TARGETS
+from pools_salud import probe_salud   # handshake stratum real (v4.0: antes
+# este archivo importaba 'stratum_ok' desde aggressive_engine, donde no
+# existe → ImportError → la pestaña HIDRA nunca aparecía: 'la hidra rota')
 
 DAEMON_METRICS = os.path.join(DATA_DIR, "metrics_daemon.json")
 
@@ -85,17 +88,18 @@ def xmr_network_hashrate() -> float:
 
 @st.cache_data(ttl=300, show_spinner=False)
 def salud_pools() -> pd.DataFrame:
-    """Chequeo stratum REAL (handshake) de todos los pools, en paralelo."""
+    """Chequeo stratum REAL (handshake) de todos los pools, en paralelo.
+    v4.0: usa probe_salud (pool_salud) — ms de respuesta real al
+    mining.subscribe; None = zombi/muerto (y queda en cooldown 5 min)."""
     def chk(t):
-        t0 = time.time()
-        vivo = stratum_ok(t["url"], timeout=4.0)
-        ms = round((time.time() - t0) * 1000)
+        ms = probe_salud(t["url"], force=True)
+        vivo = ms is not None
         return {
             "pool": t["id"],
             "url": t["url"],
             "pago": t["pago"],
             "estado": "🟢 VIVO" if vivo else "🔴 ZOMBI (TCP sí, stratum no)",
-            "respuesta": f"{ms} ms" if vivo else "sin handshake",
+            "respuesta": f"{ms:.0f} ms" if vivo else "sin handshake",
         }
     with ThreadPoolExecutor(max_workers=len(TARGETS)) as ex:
         rows = list(ex.map(chk, TARGETS))
@@ -134,7 +138,7 @@ def render(RT: dict, CFG: dict):
         st.error(f"**Pools zombi detectados ahora mismo: {urls_z}.** Aceptan "
                  f"conexión TCP pero NO responden al protocolo stratum: tu "
                  f"minero se quedaba horas ahí esperando instrucciones que "
-                 f"nunca llegan. El motor ya los salta solo (cooldown 6 h).")
+                 f"nunca llegan. El motor ya los salta solo (cooldown 5 min).")
     vivos = df_salud[df_salud["estado"].str.contains("VIVO")]
     if len(vivos):
         st.success(f"**Pools vivos**: {', '.join(vivos['pool'].tolist())} → "
@@ -274,7 +278,7 @@ def render(RT: dict, CFG: dict):
         f"**+$0.03/día brutos**. 10 cabezas = $0.30/día. La Hidra sirve "
         f"para agrupar pagos y aprender, no para llegar a $5/día.\n"
         f"- Cuando unMineable vuelva a responder stratum, el motor lo "
-        f"reintenta solo cada 6 h y reintegra el cobro directo USDT→"
+        f"reintenta solo cada 5 min y reintegra el cobro directo BTC→"
         f"Binance. Mientras tanto, los XMR de MoneroOcean (umbral "
         f"0.001 XMR) se acumulan en tu wallet.")
     st.caption("Hidra 2.0 · datos vivos Kraken/MoneroOcean · sin promesas, "
