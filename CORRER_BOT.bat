@@ -1,6 +1,6 @@
 @echo off
 REM ============================================================
-REM  CORRER_BOT.bat - Cripo_Mine (Windows)  [v4.1 HIDRA+HASHRATE]
+REM  CORRER_BOT.bat - Cripo_Mine (Windows)  [v4.2 PUENTE-DASHBOARD]
 REM  Doble clic = bot minando + pruebas + dashboard:
 REM    0) PIDE ADMINISTRADOR SOLO (necesario para el mod MSR:
 REM       sin el MSR el hashrate cae a menos de la mitad)

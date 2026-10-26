@@ -192,3 +192,63 @@ class StateStore:
                 self.counters["started_at"] = None
         except Exception:
             pass
+
+
+# ---------------------------------------------------------------------------
+# Puente daemon → dashboard (v4.2)
+# ---------------------------------------------------------------------------
+# El daemon 24/7 (run_miner.py) y el dashboard (app.py) son PROCESOS
+# DISTINTOS: el daemon escribe data/metrics_daemon.json (MINER_METRICS_FILE)
+# y el dashboard su propio metrics.json. Sin este puente, el panel en vivo
+# mostraba hashrate 0 aunque el bot estuviera minando de verdad — el bug
+# "no me reporta ningún hashrate" (cazado en vivo 27-10-2026: daemon minando
+# a 115.9 H/s reales mientras el panel leía un metrics.json inexistente).
+DAEMON_METRICS_FILE = os.path.join(DATA_DIR, "metrics_daemon.json")
+
+
+def daemon_history(n: int = 240) -> list:
+    """Historia reciente del DAEMON real (lista de dicts ts/hashrate/...)."""
+    try:
+        with open(DAEMON_METRICS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return (data.get("history") or [])[-n:]
+    except Exception:                                        # noqa: BLE001
+        return []
+
+
+def daemon_history_df(n: int = 240):
+    """Mismo formato que StateStore.history_df pero del daemon (col dt)."""
+    import pandas as pd
+    pts = daemon_history(n)
+    if not pts:
+        return pd.DataFrame(columns=["ts", "hashrate", "diff", "ok", "rej"])
+    df = pd.DataFrame(pts)
+    df["dt"] = df["ts"].apply(
+        lambda t: time.strftime("%H:%M:%S", time.localtime(t)))
+    return df
+
+
+def leer_daemon_metrics(max_age: float = 180) -> dict | None:
+    """Última métrica del DAEMON si está FRESCA (últimos `max_age` seg.).
+    Devuelve el dict en el mismo formato que StateStore.last() (mode
+    'daemon') o None si no hay datos vivos — así el panel muestra el
+    hashrate REAL del bot 24/7 y no ceros por leer el archivo equivocado."""
+    pts = daemon_history(2)
+    if not pts:
+        return None
+    last = pts[-1]
+    try:
+        if time.time() - float(last.get("ts") or 0) > max_age:
+            return None
+    except (TypeError, ValueError):
+        return None
+    return {
+        "mode": "daemon",
+        "hashrate": float(last.get("hashrate") or 0.0),
+        "difficulty": float(last.get("diff") or 0.0),
+        "shares_ok": int(last.get("ok") or 0),
+        "shares_rej": int(last.get("rej") or 0),
+        "uptime": 0.0,
+        "alive": True,
+        "ts": float(last.get("ts") or 0.0),
+    }

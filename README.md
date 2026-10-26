@@ -389,6 +389,28 @@ con PowerShell" (concede el privilegio "Lock pages in memory") y reinicia
 el PC una vez. Si no lo haces, no pasa nada: xmrig cae automáticamente a
 las 2MB huge pages y mina igual.
 
+## 🔗 v4.2 — PUENTE DAEMON→DASHBOARD (bug "hashrate 0 en pantalla" cazado EN VIVO)
+
+**Cazado en vivo el 27-10-2026 con el bot minando de verdad**: el daemon
+marcaba **1058.9 H/s reales** (API de xmrig :4068 → `metrics_daemon.json`)
+mientras el panel en vivo mostraba **0** — porque el dashboard leía
+`metrics.json` (modo python), un archivo que el daemon **nunca escribe**.
+Dos procesos, dos archivos, cero conexión: tú veías ceros aunque la CPU
+estuviera minando.
+
+**La regulación (v4.2)**: nuevo puente en `state_store.py`
+(`leer_daemon_metrics` + `daemon_history_df`) — el panel en vivo detecta
+la métrica FRESCA del daemon (<3 min) y la muestra como fuente principal
+con el sello "⚡ Fuente de datos: DAEMON 24/7"; los gráficos pasan a la
+historia real del bot. Si el daemon está parado, el panel vuelve
+automáticamente a las métricas del minero interno del dashboard.
+
+**Patrón de bots públicos verificado**: así lo hacen los dashboards serios
+(p. ej. xmrig-api de hreikin y los lanzadores de MoneroOcean) — poll del
+API HTTP de xmrig `:4068/2/summary` (ya lo hacemos desde v3.9) + exponer
+esas métricas al frontend desde UNA sola fuente. Nuestro hueco era el
+puente hacia el panel; ya está cerrado.
+
 ## 🐲 LA HIDRA — 5 cabezas de agresividad (nuevo en v3.7)
 
 La hidra es el sistema que **recupera la agresividad perdida** y blinda el

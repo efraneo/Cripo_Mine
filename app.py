@@ -12,7 +12,7 @@ import streamlit as st
 
 from config import (load_secrets, POOL_CATALOG, SECRETS_HELP,
                     format_hashrate, format_btc, format_uptime)
-from state_store import StateStore
+from state_store import (StateStore, leer_daemon_metrics, daemon_history_df)
 from stratum_miner import make_miner
 from binance_api import make_binance, BinanceAPI, format_deposit_status
 from pool_stats import (get_price, network_stats, estimate_profitability,
@@ -204,22 +204,37 @@ tab_live, tab_agro, tab_hidra, tab_net, tab_bin, tab_hist, tab_help = st.tabs(
 # ===========================================================================
 def render_live():
     stats = STORE.last()
+    # v4.2: el daemon 24/7 es OTRO proceso y escribe su propio archivo
+    # (metrics_daemon.json). Si su métrica está fresca, MANDA sobre la del
+    # dashboard: sin este puente el panel mostraba hashrate 0 aunque el
+    # bot estuviera minando de verdad (bug cazado en vivo 27-10-2026).
+    d_stats = leer_daemon_metrics()
+    df_hist = None
+    if d_stats:
+        stats = d_stats
+        df_hist = daemon_history_df(240)
     if not stats:
         mode = st.session_state.get("mode_sel", "python")
         stats = {"mode": mode, "hashrate": 0, "shares_ok": 0, "shares_rej": 0,
                  "difficulty": 0, "uptime": 0, "alive": miner_alive()}
+    if df_hist is None:
+        df_hist = STORE.history_df(240)
     totals = STORE.totals()
     price, price_src = get_price_cached(CFG.get("PRICE_SOURCE", "binance"))
     net = network_stats_cached()
     est = estimate_profitability(stats.get("hashrate", 0) or 0, net, price)
 
+    if d_stats:
+        st.caption("⚡ Fuente de datos: **DAEMON 24/7** (data/"
+                   "metrics_daemon.json, métrica fresca del bot real)")
+
     ui.kpi_grid(stats, totals, est, price)
 
     left, right = st.columns([2, 1])
     with left:
-        st.plotly_chart(ui.chart_hashrate(STORE.history_df(240)),
+        st.plotly_chart(ui.chart_hashrate(df_hist),
                         width="stretch", key=f"hr{time.time()//5}")
-        st.plotly_chart(ui.chart_shares(STORE.history_df(240)),
+        st.plotly_chart(ui.chart_shares(df_hist),
                         width="stretch", key=f"sh{time.time()//5}")
     with right:
         st.plotly_chart(ui.gauge_aceptacion(stats.get("shares_ok", 0),
