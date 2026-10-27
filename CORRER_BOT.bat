@@ -59,6 +59,12 @@ echo   ==============================================
 echo    LISTO. El bot esta corriendo:
 echo     - Ventana "CripoMine DAEMON"    = minero 24/7
 echo     - Ventana "CripoMine DASHBOARD" = panel visual
+echo.
+echo    *** NO PULSES "INICIAR" DENTRO DEL PANEL ***
+echo    El daemon YA esta minando. Ese boton es solo para
+echo    minar sin el bat: si lo pulsas ahora abre un SEGUNDO
+echo    minero que pelea la CPU y el hashrate se va a la mitad.
+echo    (En v4.2.1 el boton se desactiva solo si ve al daemon.)
 echo     - Tu Telegram                   = PRUEBA DE GANANCIAS
 echo       (y /ganancias /hidra /estado /apagar cuando quieras)
 echo.

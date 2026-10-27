@@ -411,6 +411,29 @@ API HTTP de xmrig `:4068/2/summary` (ya lo hacemos desde v3.9) + exponer
 esas métricas al frontend desde UNA sola fuente. Nuestro hueco era el
 puente hacia el panel; ya está cerrado.
 
+### v4.2.1 — "¿pulo INICIAR si ya corrí CORRER_BOT.bat?" → NO
+
+Doble arranque detectado como causa real de hashrate a la mitad: el
+`CORRER_BOT.bat` ya arranca el **DAEMON 24/7** (xmrig en su propia
+ventana). Si además pulsas **▶️ INICIAR** en el menú lateral del panel,
+lanzas un **SEGUNDO minero** dentro del dashboard: los dos procesos
+pelean los mismos hilos de CPU y el hashrate de cada uno cae ~50%
+(tú lo ves como "no reporta nada").
+
+**Regla de oro**: `CORRER_BOT.bat` = única fuente. Abre el panel solo
+para **VER**, no para iniciar. El botón ▶️ INICIAR es únicamente para
+minar SIN el bat (modo panel).
+
+Arreglo v4.2.1 (el panel ahora se defiende solo):
+1. El semáforo **Pool/Minero** del menú lateral se pone 🟢 si el daemon
+   está vivo (antes mostraba 🔴 aunque estuvieras minando — eso empujaba
+   a pulsar INICIAR).
+2. Aviso visible: "⚡ Bot YA corriendo como DAEMON 24/7. NO pulses INICIAR".
+3. El botón ▶️ INICIAR **se desactiva solo** mientras el daemon reporte
+   métricas frescas (<3 min), y `start_miner()` re-verifica por si acaso
+   (queda registrado en el log del panel, nunca lanza el doble minado).
+4. `CORRER_BOT.bat` imprime la regla al terminar.
+
 ## 🐲 LA HIDRA — 5 cabezas de agresividad (nuevo en v3.7)
 
 La hidra es el sistema que **recupera la agresividad perdida** y blinda el

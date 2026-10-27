@@ -76,6 +76,14 @@ def start_miner():
         except Exception:
             pass
         RT["miner"] = None
+    # v4.2.1: si el DAEMON 24/7 ya esta minando, NO abrir un segundo
+    # minero: dos procesos pelean la CPU y el hashrate se va a la mitad.
+    if leer_daemon_metrics() is not None:
+        STORE.append_event("INICIAR ignorado: el DAEMON 24/7 ya esta minando. "
+                           "No hace falta pulsar INICIAR tras CORRER_BOT.bat "
+                           "(usa DETENER_TODO.bat para minar solo desde el "
+                           "panel).", "warn")
+        return
     mode = st.session_state.get("mode_sel", CFG["MINER_MODE"])
     pool_url = st.session_state.get("pool_url_sel", CFG["POOL_URL"])
     user = (st.session_state.get("pool_user_in", "")
@@ -134,9 +142,17 @@ with st.sidebar:
     st.caption("v2 AGRESIVA: motor multi-pool con failover, Telegram y "
                "pagos a Binance · pestaña 'Motor agresivo'")
 
+    # v4.2.1: el semaforo considera al DAEMON 24/7 (CORRER_BOT.bat),
+    # no solo al minero interno del panel.
+    daemon_ok = leer_daemon_metrics() is not None
+    bot_on = miner_alive() or daemon_ok
     c1, c2 = st.columns(2)
-    c1.markdown("🟢 **Pool**" if miner_alive() else "🔴 **Pool**")
-    c2.markdown("🟢 **Minero**" if miner_alive() else "🔴 **Minero**")
+    c1.markdown("🟢 **Pool**" if bot_on else "🔴 **Pool**")
+    c2.markdown("🟢 **Minero**" if bot_on else "🔴 **Minero**")
+    if daemon_ok and not miner_alive():
+        st.caption("⚡ Bot YA corriendo como DAEMON 24/7 (lo arrancó "
+                   "CORRER_BOT.bat). NO pulses ▶️ INICIAR: abriría un "
+                   "segundo minero y el hashrate caería a la mitad.")
 
     st.divider()
     mode = st.radio(
@@ -177,7 +193,14 @@ with st.sidebar:
                            key="threads_in")
 
     b1, b2 = st.columns(2)
-    if b1.button("▶️ INICIAR", type="primary", width="stretch"):
+    # v4.2.1: con el daemon vivo el botón se desactiva (no rompe nada,
+    # solo evita el doble minado). start_miner() además lo re-chequea.
+    if b1.button("▶️ INICIAR", type="primary", width="stretch",
+                 disabled=daemon_ok and not miner_alive(),
+                 help="El DAEMON 24/7 ya está minando. INICIAR abriría un "
+                      "SEGUNDO minero que pelea la CPU: hashrate a la mitad. "
+                      "Si de verdad quieres minar desde el panel, cierra el "
+                      "daemon con DETENER_TODO.bat y vuelve a pulsar."):
         start_miner()
         st.rerun()
     if b2.button("⏹️ DETENER", width="stretch"):
