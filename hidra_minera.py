@@ -72,12 +72,17 @@ def info_cpu() -> dict:
 
 
 def hilos_optimos(info: dict | None = None) -> int:
-    """Regla RandomX: 1 hilo por MB de caché L3 (2 MB compartido×2 hilos).
-    Sin dato de L3: núcleos físicos (el óptimo típico en Ryzen/Intel
-    modernos). Nunca menos de 1."""
-    info = info or info_cpu()
-    fis = max(1, int(info.get("fisicos") or 1))
-    return fis
+    """Regla RandomX (2MB de L3 por hilo); sin L3: núcleos físicos.
+    v4.5: si AFINAR.bat midió el óptimo en ESTA máquina, ese número manda."""
+    try:
+        p = os.path.join(DATA_DIR, "afinado.json")
+        with open(p, encoding="utf-8") as f:
+            h = int((json.load(f) or {}).get("hilos") or 0)
+        if h >= 1:
+            return max(1, min(h, (info or info_cpu()).get("logicos") or h))
+    except Exception:                        # sin afinado.json: normal
+        pass
+    return max(1, int((info or info_cpu()).get("fisicos") or 1))
 
 
 def _es_amd(vendor: str) -> bool:
@@ -86,24 +91,18 @@ def _es_amd(vendor: str) -> bool:
 
 
 def config_optima(cfg: dict) -> dict:
-    """Devuelve el dict `optima` que miner_manager.write_xmrig_config
-    fusiona dentro del objeto cpu + randomx de xmrig (CABEZA 1).
-
-    Fuentes: xmrig.com/docs/miner/config/cpu (huge-pages, huge-pages-jit,
-    priority, memory-pool, randomx.mode/wrmsr/rdmsr).
-    """
+    """Dict `optima` que write_xmrig_config fusiona en cpu+randomx
+    (CABEZA 1). Fuente: xmrig.com/docs/miner/config/cpu."""
     info = info_cpu()
-    prioridad = 2          # 1-5; >2 puede dejar el PC inservible: 2 = justo
     opt = {
         "cpu": {
             "enabled": True,
             "huge-pages": True,
             "huge-pages-jit": True,        # pequeña subida en Ryzen
             "hw-aes": None,                # auto (Ryzen/Intel modernos sí)
-            "priority": prioridad,
+            "priority": 2,                 # 1-5; >2 deja el PC inservible
             "max-threads-hint": hilos_optimos(info),
-            "memory-pool": True,           # conserva huge pages entre
-                                           # reinicios de hilos (docs xmrig)
+            "memory-pool": True,           # conserva huge pages entre reinicios
         },
         "randomx": {
             # v4.1: AUTO = xmrig elige fast/light según la caché L3 real
@@ -115,11 +114,11 @@ def config_optima(cfg: dict) -> dict:
             "scratchpad_prefetch_mode": 1,
         },
     }
-    opt["meta"] = {
-        "fisicos": info.get("fisicos"), "logicos": info.get("logicos"),
-        "ram_gb": info.get("ram_gb"), "amd": _es_amd(info.get("vendor", "")),
-        "ts": time.time(),
-    }
+    opt["meta"] = {"fisicos": info.get("fisicos"),
+                   "logicos": info.get("logicos"),
+                   "ram_gb": info.get("ram_gb"),
+                   "amd": _es_amd(info.get("vendor", "")),
+                   "ts": time.time()}
     return opt
 
 

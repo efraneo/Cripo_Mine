@@ -130,12 +130,20 @@ def write_xmrig_config(pool_url: str, user: str, password: str,
     if optima:
         try:
             cpu_opt = dict(optima.get("cpu") or {})
-            # max-threads-hint del control manual manda sobre FUEGO
-            cpu_opt["max-threads-hint"] = 100
+            # v4.5: FUEGO/AFINADOR manda su max-threads-hint (regla RandomX
+            # 2MB de L3 por hilo); 100 solo si nadie calculo un optimo.
+            # (Antes se forzaba 100 SIEMPRE: anulaba a FUEGO y en laptops
+            # con 8 hilos logicos sobre-usaba la L3 → throttle.)
+            cpu_opt.setdefault("max-threads-hint", 100)
             cfg["cpu"].update(cpu_opt)
             rx_opt = optima.get("randomx") or {}
             if rx_opt:
                 cfg["randomx"].update(rx_opt)
+            # v4.5: la GPU (Intel Iris) entra solo si AFINAR.bat la midio
+            # viva (sonda OpenCL); si no, esto no existe y xmrig ni la toca.
+            ocl = optima.get("opencl")
+            if isinstance(ocl, dict):
+                cfg["opencl"] = ocl
         except Exception:
             pass
     os.makedirs(os.path.dirname(path), exist_ok=True)

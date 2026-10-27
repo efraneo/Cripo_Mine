@@ -53,6 +53,8 @@ from binance_api import make_binance  # noqa: E402
 from miner_manager import matar_mineros_huerfanos, es_admin  # noqa: E402
 import probar_ganancias  # noqa: E402
 import hidra_minera  # noqa: E402
+import selector_moneda  # noqa: E402
+import cabeza_srb  # noqa: E402
 
 
 def log(msg: str, level: str = "info"):
@@ -171,6 +173,9 @@ def validate_environment() -> bool:
                          "antivirus y no pude recuperarlo. Ejecuta "
                          "defender_fix.ps1 como administrador y vuelve a "
                          "abrir CORRER_BOT.bat.", "error")
+    # v4.6: si la ruta elegida es SRB, el binario se baja solo la primera
+    # vez (MÉDICO de cabeza_srb) — aquí solo avisamos si falta dirección
+    # BTC para las rutas que pagan a Binance.
     return True
 
 
@@ -181,10 +186,52 @@ def shutdown(reason: str = ""):
         wd.stop()
         tctrl.stop()
         hidra.stop()
+        srb.stop()                  # v4.6: cabeza SRB si estaba activa
         matar_mineros_huerfanos()   # cierra xmrig.exe/cpuminer huérfanos
         tg.msg_daemon_stopped(cfg, reason)
         control.write(action="none", daemon_pid=None, updated_by="daemon")
     except Exception:
+        pass
+
+
+# ---------------------------------------------------------------------------
+def arrancar_ruta(ruta: dict):
+    """v4.6 MULTI: sube la cabeza correspondiente a la ruta elegida.
+    xmr_mo  -> motor agresivo + Hidra (5 cabezas), todo igual que v4.5.
+    btc_*   -> cabeza SRBMiner (Zpool paga BTC a Binance); Hidra apagada
+               para que NUNCA haya dos mineros peleando la CPU."""
+    global hidra_on
+    hidra_on = False
+    if ruta.get("id") == "xmr_mo":
+        engine.start()
+        wd.start()
+        hidra.start()
+        hidra_on = True
+        log("RUTA XMR: motor agresivo + HIDRA activos (MoneroOcean, "
+            "paga XMR a tu wallet)", "ok")
+    else:
+        if srb.start(ruta, cfg):
+            log(f"RUTA SRB: {ruta.get('nombre')} — Zpool paga BTC directo "
+                "a tu direccion Binance. Hidra en pausa (una cabeza de "
+                "CPU a la vez).", "ok")
+        else:
+            log("Ruta SRB no pudo arrancar; quedando en XMR", "warn")
+            engine.start()
+            wd.start()
+            hidra.start()
+            hidra_on = True
+
+
+def parar_ruta():
+    """Detiene SOLO la cabeza activa (swap suave entre rutas)."""
+    try:
+        if hidra_on:
+            engine.stop()
+            wd.stop()
+            hidra.stop()
+        else:
+            srb.stop()
+    except Exception:                               # noqa: BLE001
         pass
 
 
@@ -198,7 +245,21 @@ def main():
     binance = make_binance(cfg.get("BINANCE_API_KEY", ""),
                            cfg.get("BINANCE_API_SECRET", ""))
 
-    global payout, wd, tctrl, hidra
+    global payout, wd, tctrl, hidra, srb, hidra_on
+    srb = cabeza_srb.crear_cabeza(
+        on_event=lambda m, l="info": log(m, l), on_stats=on_stats)
+    hidra_on = False
+    # v4.6 MULTI: el bot elige la mejor ruta ANTES de arrancar (teoria +
+    # medido, histeresis de margen); la decision queda en data/
+    # decision_moneda.json y el panel la muestra en la pestaña MULTI.
+    try:
+        decision = selector_moneda.decidir(
+            cfg, on_event=lambda m, l="info": log(m, l))
+        ruta = selector_moneda.ruta_por_id(decision["ruta"])
+        log(f"SELECTOR MULTI: ruta elegida = {decision['ruta']}", "ok")
+    except Exception as e:                          # noqa: BLE001
+        log(f"Selector fallo ({e}): ruta XMR por defecto", "warn")
+        ruta = selector_moneda.ruta_por_id("xmr_mo")
     payout = PayoutWatcher(cfg, binance, on_alert=lambda m, l: alert(m, l))
     wd = Watchdog(cfg, engine=engine, get_status_fn=get_status,
                   send_fn=lambda m, l="info": tg.send(cfg, m, l),
@@ -221,6 +282,10 @@ def main():
         log("Modo --once: diagnóstico de una pasada", "info")
         for t in TARGETS:
             log(f"  objetivo: {t['id']:12s} url={t['url']}", "info")
+        try:
+            log(selector_moneda.imprimir_tabla(cfg), "info")
+        except Exception:                           # noqa: BLE001
+            pass
         engine.start()
         time.sleep(25)
         snap = engine.snapshot()
@@ -230,11 +295,9 @@ def main():
         engine.stop()
         return
 
-    engine.start()
     payout.start()
-    wd.start()
     tctrl.start()
-    hidra.start()      # CABEZA VIGÍA vigilando el hashrate 24/7
+    arrancar_ruta(ruta)                             # v4.6: ruta elegida
     tg.msg_daemon_started(cfg, get_status())
     # v3.5: PRUEBA DE GANANCIAS inmediata — en tu Telegram verás el saldo
     # del pool, el % del umbral y cuánto BTC/día puedes ganar.
@@ -254,6 +317,15 @@ def main():
         horas = 0.0
     next_ev = time.time() + horas * 3600 if horas > 0 else 0.0
 
+    # v4.6 MULTI: re-evaluación periódica (saldo Zpool cada 30 min,
+    # decisión cada SELECTOR_CADA_HORAS; swap suave si cambia la ruta)
+    try:
+        sel_h = float(cfg.get("SELECTOR_CADA_HORAS") or 6)
+    except (TypeError, ValueError):
+        sel_h = 6.0
+    next_dec = time.time() + max(0.5, sel_h) * 3600
+    next_saldo = time.time() + 1800
+
     stop_reason = ""
     try:
         while True:
@@ -263,6 +335,30 @@ def main():
             if ctrl.get("action") == "stop":
                 stop_reason = "orden de parada (dashboard/Telegram)"
                 break
+            if time.time() >= next_saldo:
+                try:
+                    selector_moneda.registrar_saldo_zpool(
+                        cfg, on_event=lambda m, l="info": log(m, l))
+                except Exception:                   # noqa: BLE001
+                    pass
+                next_saldo = time.time() + 1800
+            reeval = (selector_moneda.leer_decision() or {}).get("reevaluar")
+            if time.time() >= next_dec or reeval:
+                try:
+                    nueva = selector_moneda.decidir(
+                        cfg, on_event=lambda m, l="info": log(m, l))
+                    if nueva["ruta"] != ruta.get("id"):
+                        log(f"SWAP DE RUTA: {ruta.get('id')} -> "
+                            f"{nueva['ruta']}", "ok")
+                        tg.send(cfg, f"🧭 <b>MULTI: cambio de ruta</b> "
+                                     f"{ruta.get('id')} → {nueva['ruta']}",
+                                "info")
+                        parar_ruta()
+                        ruta = selector_moneda.ruta_por_id(nueva["ruta"])
+                        arrancar_ruta(ruta)
+                except Exception as e:              # noqa: BLE001
+                    log(f"Re-evaluación de ruta fallo: {e}", "warn")
+                next_dec = time.time() + max(0.5, sel_h) * 3600
             if next_ev and time.time() >= next_ev:
                 try:
                     probar_ganancias.enviar_prueba(cfg, motivo="periodica")

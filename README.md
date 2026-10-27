@@ -470,6 +470,133 @@ mineros) — solo abre el panel y avisa. Reiniciar de cero =
 3. Doble clic `CORRER_BOT.bat` (UAC) → espera 2-3 min → el panel debe
    mostrar el sello "⚡ Fuente: DAEMON 24/7" y tu hashrate real.
 
+## 📋 v4.4 — PLAN DE OPCIONES POR COSTO/BENEFICIO + CALCULADORA DEL NETO (27-10-2026)
+
+Responde tus tres preguntas con números de HOY (XMR ~$600, red Monero
+7.16 GH/s, umbral MoneroOcean 0.003 XMR ≈ $1.80):
+
+1. **¿Cómo se convierten los 102 shares OK en dinero?** Los shares son
+   boletos de trabajo aceptado (salud del motor); el dinero lo define el
+   HASHRATE SOSTENIDO × TIEMPO (tu porción de los 432 XMR/día de la red).
+2. **¿Por qué "5 años"?** Dos capas: (a) el bug v4.3.2 de mezclar la ruta
+   muerta unMineable con tu ingreso XMR — YA CORREGIDO; (b) tu hashrate
+   real (~33 H/s) está 30-240× por debajo de lo esperable en una laptop —
+   esa es la prioridad #1 del plan: medirlo y arreglarlo es gratis.
+3. **¿Quitar la hidra?** NO — el piloto A/B (config FUEGO vs xmrig base,
+   mismo pool) dio IDENTICO: no estorba, y te quita MÉDICO/VIGÍA/ESCUDO/
+   MSR (hasta ×1.5 en Ryzen). Veredicto: se queda.
+
+**Nuevos archivos**:
+- `PLAN_COSTO_BENEFICIO.md` — el plan completo: 11 opciones ordenadas por
+  beneficio/costo, tabla "hashrate → dólares/día", hardware honesto y
+  hoja de ruta. Ábrelo con doble clic en `VER_PLAN.bat`.
+- `CALCULO_NETO.bat` + `calculadora_neta.py` — la REGLA DEL NETO:
+  `NETO/día = bruto XMR − luz`. Con TU hashrate, TU cargador (W) y TU
+  tarifa eléctrica te dice: **MINAR 24/7 / SOLO HORAS OCIOSAS / APAGAR**.
+  Lee el hashrate real del daemon y el precio del día (Kraken/Blockchair).
+  A $600 el XMR: $10/día ≈ 276 kH/s; una laptop 45 W a 0.5 kH/s deja
+  ~−$0.09/día con luz a $0.10/kWh → minar en laptop es casi siempre
+  empate o pérdida: la calculadora decide.
+
+**Lo que ya es gratis y solo faltaba ejecutar**: DESVELO.bat (24/7,
+hasta ×3 shares si antes dormías), DIAGNOSTICO.bat (30 s), PAGINAS_1GB.ps1
+(+1-3%). Criterio de salida honesto: si el neto sale negativo, el bot
+queda como colector pasivo mientras el PC esté encendido por otras
+razones — apagar NO borra saldo ya minado.
+
+## ⚡ v4.5 — MAX I5: afinador automático + cadena del dinero en el panel (27-10-2026)
+
+"Haz tú las pruebas, corre el bot en segundo plano, sácale el máximo a mi
+HP Pavilion i5 con Iris Graphics." Esto fue lo que se hizo y lo que el ZIP
+trae nuevo:
+
+1. **AFINAR.bat + afinador.py — el tuning lo mide TU máquina, no una tabla.**
+   Cierra el bot, lanza AFINAR.bat (UAC): prueba tu CPU con N hilos
+   (lógicos, −2, físicos, mitad y el tope RandomX 2MB de L3 por hilo),
+   5 min por candidato midiendo el hashrate SOSTENIDO por la API :4068,
+   detecta throttle (sostenido <70% del pico), y además hace una **sonda
+   de tu GPU Iris con OpenCL** (CPU apagado, 3.5 min, timeout automático:
+   si tu driver la deja minar, se activa como segunda cabeza de
+   MoneroOcean; si no, queda fuera y no molesta). El ganador queda en
+   `data/afinado.json` y el daemon lo respeta desde el próximo
+   CORRER_BOT.bat. Repítelo cuando cambies algo (ventilación, verano, etc.).
+
+2. **BUG de tuning cazado y corregido** (`miner_manager.py`): la config
+   forzaba `max-threads-hint = 100` SIEMPRE, anulando el cálculo de la
+   hidra — en tu i5 (8 hilos lógicos, ~8MB L3) eso significa 8 hilos
+   peleando 4 ranuras de L3 → menos H/s sostenidos y laptop a 100°C.
+   Ahora FUEGO/AFINADOR mandan su hint (regla 2MB/hilo) y el 100% es solo
+   el fallback.
+
+3. **Pestaña nueva "💰 De shares a dinero"** (`dinero_panel.py`): la cadena
+   completa con tus números VIVOS — shares OK → PPLNS → saldo pendiente
+   (leído de api.moneroocean.stream) → umbral 0.003 XMR → pago a tu
+   wallet. ETA realista de próximo pago (solo ruta viva, sin el bug de
+   los "5 años"), barra de progreso hacia la **meta 10 dls/día** con la
+   tabla de palancas por costo/beneficio, y el expander que explica por
+   qué antes eran 77 días.
+
+4. **Pruebas en segundo plano (sandbox)**: daemon corrido, API del pool
+   sondada en vivo (XMR ~$594, red 7.13 GH/s), batería de tests ampliada
+   (`test_v45_max_i5.py`): gancho afinado→FUEGO, hint respetado, opencl
+   solo si la sonda pasó, matemática del ETA y del % de umbral, ciclos
+   detener/correr limpios. Lección re-confirmada: el sandbox NO puede
+   medir RandomX (0 H/s, conexiones reseteadas) — por eso el afinador
+   corre en TU laptop, donde los números valen.
+
+**Flujo recomendado HOY**: `CORRER_BOT.bat` (UAC) → deja minar 15 min →
+`DETENER_TODO.bat` → `AFINAR.bat` (UAC, 25-45 min sin tocar la laptop) →
+`CORRER_BOT.bat`. El panel ahora te dice cuánto falta para tu primer pago
+y qué palanca lo acerca más.
+
+## 🧭 v4.6 — MULTI: el bot elige la mejor moneda + la verdad de Binance (28-10-2026)
+
+**Lo que pediste**: "que no solo se gane con BTC sino con otros activos
+que se puedan minar y que el bot elija el mejor, o más de uno, según mi
+máquina". HECHO — y la vía Binance quedó investigada a fondo:
+
+- **La verdad de Binance (verificada en fuentes oficiales):** el
+  **POOL de Binance cierra el 10-nov-2026 07:00 UTC** (Binance Pool,
+  Pool Savings, Cloud Mining y Transaction Accelerator terminan; los
+  stratum dejan de contar shares). Además el BTC es SHA-256 de ASICs:
+  una CPU no compite ahí aunque el pool siguiera vivo. **Lo que SÍ
+  sirve de Binance es el exchange + su API pública**, y el bot lo usa:
+  1. **Precio BTC en vivo** (API pública, validada: Kraken 80,533 ≈
+     Binance 80,639 el día de la entrega).
+  2. **Destino del pago:** las rutas nuevas pagan **BTC DIRECTO a tu
+     dirección de depósito de Binance** (en Zpool el "usuario" del
+     stratum ES la dirección: sin cuentas ni claves ni retiros).
+  3. **Lectura de saldo** con tu API key de solo-lectura (pestaña Binance).
+  - XMR está delistado de Binance desde 2024-02: la ruta XMR cobra en tu
+    wallet y se vende en Kraken u otro exchange que la liste.
+- **El selector (nueva pestaña 🧭 MULTI):** 3 rutas — `xmr_mo` (XMR en
+  MoneroOcean, la cabeza xmrig-MO de siempre), `btc_vrsc` (VerusHash) y
+  `btc_gr` (GhostRider, algoritmo hecho para CPUs), las dos nuevas vía
+  **SRBMiner-Multi** (binario que el MÉDICO nuevo descarga solo desde
+  GitHub, v3.8.0 verificada en vivo). Compara $/día de cada ruta con dos
+  capas honestas: **TEORÍA** (emisión×precio×tu hash/hash de red
+  conservador; XMR usa la matemática exacta de dificultad real) y
+  **MEDIDO** (saldo real de Zpool creciendo entre visitas — tras 24h
+  minando, el medido manda). Cambia de ruta solo si otra gana con
+  margen (`MARGEN_CAMBIO_PCT`, default 15%) — cero vaivenes.
+- **¿Más de una a la vez?** En tu CPU NO conviene: RandomX/VerusHash/
+  GhostRider se pelean la misma caché L3 (dos mineros = mitad cada uno).
+  Una cabeza de CPU activa + la **GPU Iris como segunda cabeza real en
+  paralelo** (sonda OpenCL de AFINAR.bat). Y MoneroOcean internamente ya
+  es multi-moneda (mina el fork RandomX más rentable, paga XMR).
+- **Caza de datos raros en vivo:** Binance marcó XMRUSDT $118.70 con
+  Kraken en $591.72 → el selector hace **validación cruzada de precios**
+  y si divergen >30% usa Kraken y te avisa. Dato raro no decide dinero.
+- Archivos nuevos: `selector_moneda.py`, `cabeza_srb.py`,
+  `multi_panel.py`, `SELECTOR.bat`. Integrados: `run_miner.py` (decide
+  ruta al arrancar, swap suave cada re-evaluación, saldo Zpool cada
+  30 min), `config.py` (SELECTOR_CADA_HORAS, MARGEN_CAMBIO_PCT), panel
+  y dinero_panel. Todo ≤600 líneas.
+- **Nota de red:** el sandbox de pruebas no resuelve `*.zpool.ca` ni
+  alcanza `api.zergpool.com` (DNS propio); en tu laptop doméstica el DNS
+  es distinto — si Zpool tampoco respondiera, el selector lo marca no
+  viable y te queda minando XMR (nunca te quedas sin minar).
+
 ## 🐲 LA HIDRA — 5 cabezas de agresividad (nuevo en v3.7)
 
 La hidra es el sistema que **recupera la agresividad perdida** y blinda el
