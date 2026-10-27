@@ -434,6 +434,42 @@ Arreglo v4.2.1 (el panel ahora se defiende solo):
    (queda registrado en el log del panel, nunca lanza el doble minado).
 4. `CORRER_BOT.bat` imprime la regla al terminar.
 
+## 🌙 v4.3 — DESVELO + INICIAR eliminado + bat a prueba de dobles
+
+**Lo que te pasó**: cerraste la tapa del portátil → Windows se durmió →
+el daemon se congeló y la conexión al pool murió → al volver, el
+hashrate estaba por los suelos. Importante entender: **esos "33" no
+eran monedas acumuladas** — el pool solo paga shares ACEPTADOS en el
+momento; lo que se pierde al dormir la máquina es el tiempo de minado,
+no dinero ya ganado. La solución es que la máquina NUNCA se duerma.
+
+**1) DESVELO (nuevo)**: `CORRER_BOT.bat` ahora ejecuta [0/4] DESVELO
+antes de minar — `powercfg`: suspende/hiberna NUNCA con cargador +
+**cerrar la tapa = no hacer nada** (sigue minando) + pantalla se apaga
+a los 15 min (eso no detiene nada). También tienes **`DESVELO.bat`**
+(doble clic + UAC — versión recomendada: no puede ser bloqueada por
+las políticas de PowerShell de Windows) o `DESVELO.ps1` si prefieres
+PowerShell (`powershell -ExecutionPolicy Bypass -File .\DESVELO.ps1`).
+⚠️ Con la tapa cerrada: cargador SIEMPRE puesto y ventilación libre
+(calienta más; si baja el hashrate, ábrela).
+
+**2) INICIAR eliminado de la vista (petición del dueño)**: el menú
+lateral ya NO muestra ▶️ INICIAR — el lanzador directo para recoger
+monedas es `CORRER_BOT.bat` y el panel solo MUESTRA. Para el caso
+raro de minar sin el bat existe el toggle "🧪 Modo sin bat" que hace
+reaparecer el botón (con la protección v4.2.1 intacta).
+
+**3) CORRER_BOT.bat a prueba de dobles**: si `xmrig.exe` ya está
+vivo, el bat NO arranca otro daemon (antes re-clicarlo podía duplicar
+mineros) — solo abre el panel y avisa. Reiniciar de cero =
+`DETENER_TODO.bat` y volver a correr el bat.
+
+**Recuperar el hashrate perdido — procedimiento (2 min)**:
+1. Doble clic `DESVELO.ps1` (UAC) — una sola vez, queda permanente.
+2. `DETENER_TODO.bat` para limpiar restos del sueño.
+3. Doble clic `CORRER_BOT.bat` (UAC) → espera 2-3 min → el panel debe
+   mostrar el sello "⚡ Fuente: DAEMON 24/7" y tu hashrate real.
+
 ## 🐲 LA HIDRA — 5 cabezas de agresividad (nuevo en v3.7)
 
 La hidra es el sistema que **recupera la agresividad perdida** y blinda el

@@ -193,16 +193,27 @@ with st.sidebar:
                            key="threads_in")
 
     b1, b2 = st.columns(2)
-    # v4.2.1: con el daemon vivo el botón se desactiva (no rompe nada,
-    # solo evita el doble minado). start_miner() además lo re-chequea.
-    if b1.button("▶️ INICIAR", type="primary", width="stretch",
-                 disabled=daemon_ok and not miner_alive(),
-                 help="El DAEMON 24/7 ya está minando. INICIAR abriría un "
-                      "SEGUNDO minero que pelea la CPU: hashrate a la mitad. "
-                      "Si de verdad quieres minar desde el panel, cierra el "
-                      "daemon con DETENER_TODO.bat y vuelve a pulsar."):
-        start_miner()
-        st.rerun()
+    # v4.3: EL BOTÓN INICIAR SE ELIMINA DE LA VISTA (petición del
+    # dueño). El lanzador directo para recoger monedas es
+    # CORRER_BOT.bat; INICIAR solo reaparece en "modo sin bat".
+    mostrar_iniciar = st.toggle(
+        "🧪 Modo sin bat (mostrar INICIAR)", key="ver_iniciar",
+        help="Normal NO lo necesitas: CORRER_BOT.bat arranca todo "
+             "solo (y v4.3 evita dobles). Actívalo SOLO si quieres "
+             "minar desde el panel sin el bat.")
+    if mostrar_iniciar:
+        # v4.2.1: con el daemon vivo el botón se desactiva (no rompe
+        # nada, solo evita el doble minado). start_miner() lo re-chequea.
+        if b1.button("▶️ INICIAR", type="primary", width="stretch",
+                     disabled=daemon_ok and not miner_alive(),
+                     help="El DAEMON 24/7 ya está minando. INICIAR abriría "
+                          "un SEGUNDO minero que pelea la CPU: hashrate a "
+                          "la mitad. Detén todo con DETENER_TODO.bat antes."):
+            start_miner()
+            st.rerun()
+    else:
+        b1.caption("▶️ Lanzador directo: **CORRER_BOT.bat** "
+                   "(el panel solo MUESTRA)")
     if b2.button("⏹️ DETENER", width="stretch"):
         stop_miner()
         st.rerun()

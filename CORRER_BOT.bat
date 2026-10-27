@@ -30,12 +30,23 @@ cd /d "%~dp0"
 title CORRER BOT - Cripo_Mine
 echo.
 echo   ==============================================
-echo    CORRER EL BOT  -  Cripo_Mine v3.9 UTILIDADES
+echo    CORRER EL BOT  -  Cripo_Mine v4.3 DESVELO
 echo    Carpeta: %CD%
 echo   ==============================================
 echo.
 where python >nul 2>nul
 if errorlevel 1 (set PY=py -3) else (set PY=python)
+
+echo   [0/4] DESVELO: el portatil NO se va a dormir...
+powercfg /change standby-timeout-ac 0 >nul 2>&1
+powercfg /change hibernate-timeout-ac 0 >nul 2>&1
+powercfg /change monitor-timeout-ac 15 >nul 2>&1
+powercfg /setacvalueindex SCHEME_CURRENT SUB_BUTTONS LIDACTION 0 >nul 2>&1
+powercfg /setactive SCHEME_CURRENT >nul 2>&1
+echo         OK: con el cargador puesto, puedes cerrar la tapa
+echo         y el bot SIGUE minando (pantalla se apaga a los 15 min,
+echo         eso no detiene nada).
+echo.
 
 echo   [1/4] Sincronizando con GitHub (si es la primera vez,
 echo         te pedira autorizar en el navegador)...
@@ -48,8 +59,17 @@ echo         OK
 echo.
 
 echo   [3/4] Arrancando el DAEMON minero (ventana nueva)...
-start "CripoMine DAEMON" cmd /k %PY% run_miner.py
-timeout /t 4 /nobreak >nul
+REM v4.3: a prueba de dobles - si xmrig ya vive, NO arranca otro
+REM (dos mineros pelean la CPU y el hashrate se va a la mitad).
+tasklist /FI "IMAGENAME eq xmrig.exe" 2>nul | find /I "xmrig.exe" >nul
+if %errorlevel%==0 (
+    echo   El DAEMON YA esta corriendo: no se arranca otro.
+    echo   Solo se abre el panel. Para reiniciar de cero:
+    echo   DETENER_TODO.bat y vuelve a correr este bat.
+) else (
+    start "CripoMine DAEMON" cmd /k %PY% run_miner.py
+    timeout /t 4 /nobreak >nul
+)
 
 echo   [4/4] Abriendo el DASHBOARD (ventana nueva)...
 start "CripoMine DASHBOARD" cmd /k %PY% -m streamlit run app.py
