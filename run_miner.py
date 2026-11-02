@@ -173,7 +173,25 @@ def validate_environment() -> bool:
                          "antivirus y no pude recuperarlo. Ejecuta "
                          "defender_fix.ps1 como administrador y vuelve a "
                          "abrir CORRER_BOT.bat.", "error")
+
+    # --- MEJORA: Optimización de Sistema para Hashrate ---
+    try:
+        import system_optimizer
+        opt_res = system_optimizer.run_full_optimization("xmrig.exe")
+        log(f"Optimización de sistema aplicada: {opt_res}", "ok")
+    except Exception as e:
+        log(f"Error aplicando optimizador de hashrate: {e}", "warn")
+
+    # --- MEJORA: Optimización de Sistema para Hashrate ---
+    try:
+        import system_optimizer
+        opt_res = system_optimizer.run_full_optimization("xmrig.exe")
+        log(f"Optimización de sistema aplicada: {opt_res}", "ok")
+    except Exception as e:
+        log(f"Error aplicando optimizador de hashrate: {e}", "warn")
+
     # v4.6: si la ruta elegida es SRB, el binario se baja solo la primera
+    # vez (MÉDICO de cabeza_srb) — aquí solo avisamos si falta dirección
     # vez (MÉDICO de cabeza_srb) — aquí solo avisamos si falta dirección
     # BTC para las rutas que pagan a Binance.
     return True
