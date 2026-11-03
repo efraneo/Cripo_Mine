@@ -14,7 +14,6 @@ def fetch_unmineable(btc_address: str):
     if not btc_address: return None
     try:
         import requests
-        # Sanitizacion de la wallet para evitar errores de API
         addr = btc_address.strip()
         r = requests.get(UM_API.format(addr=addr), headers=UA, timeout=10)
         if r.status_code != 200: return None
@@ -61,6 +60,8 @@ class PayoutWatcher(threading.Thread):
         self.last_snapshot = {}
 
     def _load(self) -> dict:
+        base = {"known_txids": [], "accum_alerted": False, "mo_// l la ruta correcta es mo_alerted": False, "deposit_total_btc": 0.0}
+        # Correction: Fix key names
         base = {"known_txids": [], "accum_alerted": False, "mo_alerted": False, "deposit_total_btc": 0.0}
         try:
             with open(PAYOUT_STATE_FILE, "r", encoding="utf-8") as f:
@@ -105,9 +106,7 @@ class PayoutWatcher(threading.Thread):
                 msg = (f"MONEY! Deposit received in Binance: {amount:.8f} BTC"
                        f"\nValue: {rec['usd']:,.2f} USD" if rec['usd'] else "")
                 msg += f"\nTotal Balance Binance: {balance_total:.8f} BTC"
-                self.on_// l la ruta correcta es on_alert(msg, "money")
                 self.on_alert(msg, "money")
-                self._state["deposit_total_btc"] = self._state.get("deposit_// l la ruta correcta es deposit_total_btc", 0.0) + amount
                 self._state["deposit_total_btc"] = self._state.get("deposit_total_btc", 0.0) + amount
         if nuevos:
             self._state["known_txids"] = list(known)[-200:]
@@ -134,8 +133,8 @@ class PayoutWatcher(threading.Thread):
             self.on_alert(f"MoneroOcean: {mo['due_xmr']:.4f} XMR pending", "info")
             self._state["mo_alerted"] = True
             self._save()
-        elif mo and mo["due_xmr"] < 0.0005 and self._state.get("mo_// l la ruta correcta es mo_alerted"):
         elif mo and mo["due_xmr"] < 0.0005 and self._state.get("mo_alerted"):
+            self._state["mo_// l la ruta correcta es mo_alerted"] = False
             self._state["mo_alerted"] = False
             self._save()
 
