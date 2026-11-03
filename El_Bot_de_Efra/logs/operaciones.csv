@@ -1,0 +1,21 @@
+timestamp,usuario,activo,accion,precision,precio_ref,monto,tp1,tp2,tp3,tp4,sl,tipo,resultado,comentario
+2025-08-31 09:45:12,Efraín Sarmiento Crespo,BTCUSDT,buy,0.87,58950.25,10,59200.00,59500.00,60000.00,61000.00,58500.00,real,pendiente,"IA + Técnica confirman compra"
+2025-08-31 09:47:03,Efraín Sarmiento Crespo,ETHUSDT,sell,0.75,3150.80,5,3100.00,3050.00,3000.00,2950.00,3200.00,dry-run,ganancia,"ML propone venta, RSI confirma sobrecompra"
+2025-09-03 09:02:49,8642239,BTCUSDT,ESPERAR,111565.62,0,analisis,0.0,"IA sugiere **ESPERAR** con confianza 0.00%.
+📊 Tendencia: Alcista
+📰 Sentimiento mercado: neutral",,,,,,0,59.700832064404814,281.72002220142167,296.06987709321356,Alcista,111475.08,111724.0,False
+2025-09-03 09:05:36,8642239,BTCUSDT,ESPERAR,111826.01,0,analisis,0.0,"IA sugiere **ESPERAR** con confianza 0.00%.
+📊 Tendencia: Alcista
+📰 Sentimiento mercado: neutral",,,,,,0,62.54174441381882,302.49187405327393,300.22424746358405,Alcista,111475.08,111835.63,False
+2025-09-03 09:06:11,8642239,SOLUSDT,ESPERAR,212.01,0,analisis,0.0,"IA sugiere **ESPERAR** con confianza 0.00%.
+📊 Tendencia: Alcista
+📰 Sentimiento mercado: neutral",,,,,,0,63.979395011741794,1.8113139298403667,1.8587750449722633,Alcista,211.47,212.66,False
+2025-09-03 12:41:31,8642239,BTCUSDT,ESPERAR,112308.19,0,analisis,0.0,"IA sugiere **ESPERAR** con confianza 0.00%.
+📊 Tendencia: Alcista
+📰 Sentimiento mercado: neutral",,,,,,0,64.15765022153539,414.70213417997,350.1843347310659,Alcista,111858.65,112485.28,False
+2025-09-03 12:45:10,8642239,ETHUSDT,ESPERAR,4470.24,0,analisis,0.0,"IA sugiere **ESPERAR** con confianza 0.00%.
+📊 Tendencia: Bajista
+📰 Sentimiento mercado: neutral",,,,,,0,67.81906026514784,32.64408156485115,15.477210420346443,Bajista,4467.17,4490.64,False
+2025-09-03 22:19:28,8642239,BTCUSDT,ESPERAR,111575.97,0,analisis,0.0,"IA sugiere **ESPERAR** con confianza 0.00%.
+📊 Tendencia: Alcista
+📰 Sentimiento mercado: neutral",,,,,,0,50.21648906333114,209.35752834560117,307.65844707562826,Alcista,111329.86,111581.99,False

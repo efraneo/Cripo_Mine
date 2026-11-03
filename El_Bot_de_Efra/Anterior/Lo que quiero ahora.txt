@@ -1,0 +1,19 @@
+1. Quiero que mi bot tenga 10 accesos remotos de usuarios, con IP que pueda validar únicamente desde mi usuario administrador, y que ese acceso sea único, que no pueda acceder desde otro dispositivo (crear modulo de seguridad en capas), que yo como usuario administrador, sea el único de dar pase o habilitar el acceso de esos 10 usuarios que se conecten desde su dispositivo (usuario/clave/perfil/IP), y que desde ese acceso puedan ingresar a la intefaz web (streamlit) que utilizo actualmente y muestre acorde a lo que su perfil permita. 
+2. Integra lo anterior a lo que tengo actualmente, sin eliminar funciones, robustece y profesionaliza todo!!
+3. Quiero probar el acceso desde mi propio celular y que se abra la aplicación streamlit en mi celular, 
+4. quiero aumentar confianza por diseño, mejorar señales (más indicadores, mejor LSTM, más datos history/backtest). Quiero que la IA tenga más data: Añade carga automática de fuentes externas (CSV histórico, AlphaVantage, TwelveData) para enriquecer entrenamientos LSTM y más metodologías quieres que lo integres. Ten en cuenta para descargar datos mis claves / permisos. Quiero, que integres más metodologías (p. ej. Pivot Points, Ichimoku, OBV, VWAP) y prepara un pipeline para que el LSTM se reentrene periódicamente con nuevos datos. Si puedes descarga esos archivos que necesito de las fuentes de información e integralas por mi al bot para darle mas robustez
+
+actualmente me aparece: (❌ Vender Confianza IA: 6.61%, Score: -0.045 
+
+📊 Análisis de BNBUSDT, Señal generada por IA + metodologías técnicas: 
+
+🕒 Hora de análisis 2025-09-25 00:01:00 
+📢 Vender, Confianza: 6.61%, Score: -0.045), no quiero que aparezcan dos valores repetido, quiero que me muestres unicamente el de "confianza IA", es decir: (❌ Vender Confianza IA: 6.61%, Score: -0.045 
+
+📊 Análisis de BNBUSDT, Señal generada por IA + metodologías técnicas: 🕒 Hora de análisis 
+
+2025-09-25 00:01:00), pero resuelveme que dicho nivel es inferior al 10%, 2025-09-25 00:01:00.168836: I tensorflow/core/platform/cpu_feature_guard.cc:210] This TensorFlow binary is optimized to use available CPU instructions in performance-critical operations.
+To enable the following instructions: SSE3 SSE4.1 SSE4.2 AVX AVX2 AVX_VNNI FMA, in other operations, rebuild TensorFlow with the appropriate compiler flags.
+2025-09-25 00:01:00,387 | WARNING | [BotDeEfra] ⚠️ detectar_niveles_fibonacci: DataFrame vacío
+2025-09-25 00:01:00,396 | WARNING | [BotDeEfra] ⚠️ detectar_niveles_fibonacci: DataFrame vacío
+2025-09-25 00:01:01,105 | WARNING | [BotDeEfra] ⚠️ app.py.tab_analizar -> No se pudo exportar/enviar gráfico a Telegram: cannot import name 'send_telegram_photo' from 'telegram_alertas' (C:\software_phyton\El_Bot_de_Efra\telegram_alertas.py)

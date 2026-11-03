@@ -1,0 +1,76 @@
+# 🔐 Archivos sensibles y configuración local
+*.env
+.env/
+.envrc/
+.secret/
+credentials.json
+
+# 🧠 Archivos de datos temporales y de ejecución
+ultima_ejecucion.txt
+*.csv
+*.xlsx
+*.xls
+*.pdf
+*.parquet
+
+# 🧪 Archivos de pruebas, logs y resultados
+*.log
+logs/
+*.tmp
+*.bak
+*.swp
+*.swo
+
+# 🧠 Modelos y entrenamientos (si aplica)
+*.pkl
+*.joblib
+*.h5
+
+# 💻 Archivos de Python
+__pycache__/
+*.py[cod]
+*.pyo
+*$py.class
+
+# 📦 Entornos virtuales
+env/
+venv/
+.venv/
+ENV/
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ⚙️ Archivos de configuración y metadatos
+*.cfg
+*.toml
+*.ini
+
+# 🧰 Archivos de sistema o de IDEs
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# 🧾 Notebooks
+.ipynb_checkpoints/
+*.ipynb
+
+# 📦 Distribuciones y empaquetado
+dist/
+build/
+*.egg-info/
+*.tar.gz
+*.whl
+
+# ⚡ Streamlit cache
+.streamlit/
+**/__pycache__/
+
+# 📊 Salidas y reportes exportados
+exportaciones/
+outputs/
+resultados/
+análisis/

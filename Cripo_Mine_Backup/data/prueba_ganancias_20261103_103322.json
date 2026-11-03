@@ -1,0 +1,62 @@
+{
+  "ts": 1793720002.7283688,
+  "motivo": "arranque",
+  "hashrate": 131.33,
+  "fuente": "daemon",
+  "precio_btc": 77334.01,
+  "precio_xmr": 620.47,
+  "red_xmr": {
+    "hashrate": 6602018274.666667,
+    "exacto": true,
+    "dificultad": 792242192960.0
+  },
+  "unmineable": {},
+  "zergpool": {},
+  "binance": {
+    "direccion": "",
+    "saldo_btc": null,
+    "error": "sin-claves"
+  },
+  "escenarios": [
+    {
+      "id": "hoy",
+      "titulo": "HOY (tu hashrate actual)",
+      "hashrate": 131.33,
+      "nota": "fuente: daemon",
+      "btc_dia": 6.825844986435284e-08,
+      "usd_dia": 0.005278699644394361,
+      "btc_semana": 4.778091490504699e-07,
+      "btc_mes": 2.047753495930585e-06
+    },
+    {
+      "id": "nucleos",
+      "titulo": "TODOS LOS NÚCLEOS (10 físicos)",
+      "hashrate": 656.6500000000001,
+      "nota": "hoy usas 2 hilos → ×5.0",
+      "btc_dia": 3.4129224932176417e-07,
+      "usd_dia": 0.0263934982219718,
+      "btc_semana": 2.389045745252349e-06,
+      "btc_mes": 1.0238767479652926e-05
+    },
+    {
+      "id": "huge",
+      "titulo": "+ HUGE PAGES / MSR (admin)",
+      "hashrate": 853.6450000000001,
+      "nota": "ajuste típico ×1.30 en Windows como administrador",
+      "btc_dia": 4.436799241182935e-07,
+      "usd_dia": 0.03431154768856335,
+      "btc_semana": 3.1057594688280547e-06,
+      "btc_mes": 1.3310397723548805e-05
+    },
+    {
+      "id": "hidra",
+      "titulo": "HIDRA ACTIVA (MSR + config óptima ×1.15)",
+      "hashrate": 981.6917500000001,
+      "nota": "con CORRER_BOT.bat como ADMIN: MSR aplicado (Intel), huge pages y todos los núcleos",
+      "btc_dia": 5.102319127360375e-07,
+      "usd_dia": 0.03945827984184785,
+      "btc_semana": 3.5716233891522625e-06,
+      "btc_mes": 1.5306957382081123e-05
+    }
+  ]
+}

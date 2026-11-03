@@ -1,0 +1,10 @@
+﻿{
+    "daemon_pid":  5340,
+    "action":  "stop",
+    "action_ts":  1793719986.5771072,
+    "paused_manual":  false,
+    "paused_thermal":  false,
+    "force_target":  "",
+    "threads":  null,
+    "updated_by":  "detener_bat"
+}

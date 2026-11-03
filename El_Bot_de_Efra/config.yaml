@@ -1,0 +1,42 @@
+# ===============================
+# Configuración del Trading Bot
+# ===============================
+
+# --- General ---
+backtesting: true
+categoria: cripto
+symbols_custom:
+  - BTCUSDT
+  - ETHUSDT
+  - SOLUSDT
+telegram_alertas: true
+timeframe: 1h
+intervalo: "1h"
+
+# --- Umbrales de riesgo (parametrizables) ---
+alertas:
+  winrate_min: 40          # Winrate mínimo aceptable (%)
+  max_drawdown: -20        # Drawdown máximo permitido (%)
+
+# --- Alertas de oportunidad ---
+oportunidad:
+  precision_min: 0.90      # Precisión mínima para disparar alerta a Telegram
+  auto_trade: false        # Si es true: ejecuta en REAL sin pedir confirmación (no recomendado)
+  mercados: ["binance"]    # En qué mercados aplicar (e.g., ["binance","yahoo"])
+
+# --- Gestión de riesgo y trailing (nuevo) ---
+estrategia:
+  stop_loss_pct: -2.0      # Stop inicial -2%
+  take_profit_pct: 5.0     # TP inicial +5% (opcional; trailing puede decidir)
+  trailing: true           # Activar trailing stop dinámico
+  trailing_step: 1.0       # Subir SL cada +1% de avance
+  trailing_lock: 0.5       # A partir de +X% asegura +Y% de ganancia (ver abajo)
+  trailing_lock_gain: 0.5  # Cuando supero +trailing_lock, garantizo +trailing_lock_gain
+
+# --- Telegram ---
+telegram:
+  enabled: true
+  bot_token: "PON_AQUI_TU_TOKEN"    # <-- NECESARIO
+  channel_id: "@tu_canal"           # opcional (broadcast)
+  admin_chat_ids:                   # IDs numéricos autorizados a confirmar
+    - 123456789                     # Ejemplo

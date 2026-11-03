@@ -1,0 +1,267 @@
+# ============================================================
+# QUANT TITAN PRO - CONFIGURACIÓN GLOBAL
+# ============================================================
+environment: development
+
+# ============================================================
+# EXCHANGE
+# ============================================================
+exchange:
+  provider: binance
+  testnet: true
+  sandbox: true
+  api_key: ""
+  api_secret: ""
+  enable_rate_limit: true
+  timeout_seconds: 30
+
+# ============================================================
+# MERCADO
+# ============================================================
+market:
+  exchange: binance
+  scan_mode: dynamic
+  quote_asset: USDT
+  max_symbols: 500
+  max_symbols_after_filter: 100
+  top_opportunities: 10
+  min_volume_usdt: 50000000
+  min_days_listed: 30
+  max_spread_percent: 0.50
+  excluded_symbols:
+    - BUSDUSDT
+    - TUSDUSDT
+    - FDUSDUSDT
+    - USDCUSDT
+  timeframes:
+    - 5m
+    - 15m
+    - 1h
+    - 4h
+  max_assets: 25
+  tier_1:
+    - BTCUSDT
+    - ETHUSDT
+  tier_2:
+    - SOLUSDT
+    - BNBUSDT
+    - XRPUSDT
+  tier_3:
+    - ADAUSDT
+    - DOGEUSDT
+    - AVAXUSDT
+    - LINKUSDT
+
+# ============================================================
+# UNIVERSE
+# ============================================================
+universe:
+  refresh_interval_minutes: 30
+  max_candidates: 100
+  min_relative_volume: 1.20
+  min_volatility: 0.008
+  prioritize_trending_assets: true
+
+# ============================================================
+# ESTRATEGIA
+# ============================================================
+strategy:
+  name: META_STRATEGY
+  min_confidence: 0.85
+  minimum_rr: 2.0
+  allow_long: true
+  allow_short: true
+  candlestick:
+    enabled: true
+    min_confidence: 0.80
+  trend:
+    enabled: true
+    fast_ema: 20
+    medium_ema: 50
+    slow_ema: 200
+
+# ============================================================
+# GESTIÓN DE RIESGO
+# ============================================================
+risk:
+  initial_capital: 10000
+  risk_per_trade_percent: 0.50
+  max_open_positions: 3
+  max_daily_loss_percent: 2.0
+  max_weekly_loss_percent: 5.0
+  max_drawdown_percent: 10.0
+  max_correlation: 0.70
+  emergency_stop: true
+
+# ============================================================
+# TAKE PROFIT
+# ============================================================
+take_profit:
+  tp1_size_percent: 25
+  tp2_size_percent: 25
+  tp3_size_percent: 25
+  tp4_size_percent: 25
+  move_stop_to_break_even: true
+
+# ============================================================
+# EJECUCIÓN
+# ============================================================
+execution:
+  mode: paper
+  supported_modes:
+    - paper
+    - testnet
+    - live
+    - backtest
+  max_slippage_percent: 0.10
+  order_type: market
+  partial_take_profit: true
+  trailing_stop: false
+  retry_attempts: 3
+
+# ============================================================
+# INTELIGENCIA ARTIFICIAL
+# ============================================================
+ai:
+  enabled: true
+  model: lightgbm
+  regime_detection: true
+  confidence_threshold: 0.80
+
+# ============================================================
+# BACKTEST
+# ============================================================
+backtest:
+  enabled: true
+  commission_percent: 0.10
+  spread_percent: 0.02
+  slippage_percent: 0.05
+
+# ============================================================
+# BASE DE DATOS
+# ============================================================
+database:
+  host: localhost
+  port: 5432
+  name: quant_titan
+  username: postgres
+  password: postgres
+
+# ============================================================
+# CACHE
+# ============================================================
+redis:
+  host: localhost
+  port: 6379
+  database: 0
+
+# ============================================================
+# LOGS
+# ============================================================
+logging:
+  level: INFO
+  save_to_file: true
+  folder: logs/
+
+# ============================================================
+# MÓDULOS ACTIVOS
+# ============================================================
+modules:
+  candlestick_engine: true
+  trend_engine: true
+  smart_money_engine: false
+  ai_engine: false
+  backtester: true
+
+# ============================================================
+# BASE DE DATOS
+# ============================================================
+storage:
+  engine: sqlite
+  database_path: data/quant_titan.db
+
+# ============================================================
+# APLICACION
+# ============================================================
+application:
+  name: QUANT_TITAN_PRO
+  version: 1.0.0
+  environment: development
+  scheduler_interval_seconds: 60
+  timezone: UTC
+  debug: true
+
+# ============================================================
+# SMART MONEY
+# ============================================================
+smart_money:
+  liquidity_lookback: 80
+  liquidity_threshold: 0.003
+  bos_window: 10
+  choch_window: 10
+  order_block_window: 15
+  order_block_volume_factor: 1.5
+  fvg_min_gap_percent: 0.20
+  institutional_min_score: 0.70
+  liquidity_sweep_threshold: 0.002
+  equal_highs_tolerance: 0.0015
+  equal_lows_tolerance: 0.0015
+  bos_confirmation_candles: 2
+  choch_confirmation_candles: 2
+  order_block_min_strength: 1.5
+  order_block_max_age: 40
+  fvg_fill_threshold: 0.50
+  keep_last_order_blocks: 20
+  keep_last_fvg: 20
+
+# ============================================================
+# MULTI TIME FRAME
+# ============================================================
+multi_timeframe:
+  primary: 15m
+  confirmation:
+    - 1h
+    - 4h
+
+# ============================================================
+# INDICADORES
+# ============================================================
+indicators:
+  atr_period: 14
+  relative_volume_period: 20
+  volatility_period: 20
+  atr_stop_multiplier: 1.5
+  atr_tp1_multiplier: 1.5
+  atr_tp2_multiplier: 3.0
+
+# ============================================================
+# SESIONES
+# ============================================================
+sessions:
+  asia:
+    start: 0
+    end: 8
+  london:
+    start: 7
+    end: 16
+  new_york:
+    start: 13
+    end: 22
+  trade_only_high_liquidity: true
+
+# ============================================================
+# PORTAFOLIO
+# ============================================================
+portfolio:
+  max_positions: 5
+  max_symbol_exposure: 0.30
+
+# ============================================================
+# ANALYTICS
+# ============================================================
+analytics:
+  track_equity_curve: true
+  save_reports: true
+  export_csv: true
+  export_json: true
+  benchmark: BTCUSDT

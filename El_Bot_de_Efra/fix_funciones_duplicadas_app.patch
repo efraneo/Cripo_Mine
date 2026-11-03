@@ -1,0 +1,83 @@
+--- a/app.py
++++ b/app.py
+@@
+ # --- BLOQUE 1: Limpieza de sesión unificada ---
+
++def limpiar_archivo_sesion():
++    """Elimina el archivo principal de sesión si existe."""
++    try:
++        if os.path.exists(SESSION_FILE):
++            os.remove(SESSION_FILE)
++            log_info(f"Archivo de sesión eliminado: {SESSION_FILE}", archivo="app.py", funcion="limpiar_archivo_sesion")
++    except Exception as e:
++        log_error(e, archivo="app.py", funcion="limpiar_archivo_sesion")
++
++
++def limpiar_cache_sesion():
++    """Elimina el archivo de caché de sesión si existe."""
++    try:
++        if os.path.exists(SESSION_CACHE_FILE):
++            os.remove(SESSION_CACHE_FILE)
++            log_info(f"Caché de sesión eliminada: {SESSION_CACHE_FILE}", archivo="app.py", funcion="limpiar_cache_sesion")
++    except Exception as e:
++        log_error(e, archivo="app.py", funcion="limpiar_cache_sesion")
++
++
++def limpiar_sesion_completa():
++    """Elimina tanto el archivo de sesión como la caché asociada."""
++    limpiar_archivo_sesion()
++    limpiar_cache_sesion()
++
++
++# --- BLOQUE 2: Versión consolidada de _guardar_sesion_segura ---
++
++def guardar_sesion_segura(datos: dict, clave: bytes) -> bool:
++    """
++    Guarda de forma segura los datos de sesión cifrados y firmados con HMAC.
++    Devuelve True si la operación fue exitosa.
++    """
++    import hashlib, hmac, json
++    try:
++        # Serializamos los datos
++        datos_serializados = json.dumps(datos, ensure_ascii=False, indent=2).encode("utf-8")
++
++        # Calculamos la firma HMAC
++        firma = hmac.new(clave, datos_serializados, hashlib.sha256).hexdigest()
++        paquete = {
++            "datos": datos_serializados.decode("utf-8"),
++            "firma": firma
++        }
++
++        # Guardamos a disco
++        with open(SESSION_FILE, "w", encoding="utf-8") as f:
++            json.dump(paquete, f, ensure_ascii=False, indent=2)
++
++        log_info("Sesión guardada de forma segura.", archivo="app.py", funcion="guardar_sesion_segura")
++        return True
++    except Exception as e:
++        log_error(e, archivo="app.py", funcion="guardar_sesion_segura")
++        return False
++
++
++# --- BLOQUE 3: Versión única de obtener_saldo_usuario ---
++
++def obtener_saldo_usuario(usuario_id: str) -> Optional[float]:
++    """
++    Obtiene el saldo del usuario desde la base de datos de manera segura.
++    Si falla, devuelve None y registra el error.
++    """
++    try:
++        conexion = obtener_conexion_db()
++        cursor = conexion.cursor()
++        cursor.execute("SELECT saldo FROM usuarios WHERE id = %s", (usuario_id,))
++        resultado = cursor.fetchone()
++        cursor.close()
++        conexion.close()
++        if resultado:
++            return float(resultado[0])
++        else:
++            log_warning(f"No se encontró saldo para el usuario {usuario_id}.", archivo="app.py", funcion="obtener_saldo_usuario")
++            return None
++    except Exception as e:
++        log_error(e, archivo="app.py", funcion="obtener_saldo_usuario")
++        return None

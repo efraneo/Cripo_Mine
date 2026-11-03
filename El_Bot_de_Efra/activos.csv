@@ -1,0 +1,30 @@
+categoria,simbolo,mercado,descripcion
+Criptos,BTCUSDT,binance,Bitcoin
+Criptos,ETHUSDT,binance,Ethereum
+Criptos,BNBUSDT,binance,Binance Coin
+Criptos,SOLUSDT,binance,Solana
+Acciones,AAPL,yahoo,Apple Inc.
+Acciones,TSLA,yahoo,Tesla Inc.
+Acciones,GOOGL,yahoo,Alphabet Inc. (Google)
+Acciones,MSFT,yahoo,Microsoft Corp.
+ETFs,SPY,yahoo,SPDR S&P 500 ETF Trust
+ETFs,QQQ,yahoo,Invesco QQQ Trust
+ETFs,VTI,yahoo,Vanguard Total Stock Market ETF
+ETFs,DIA,yahoo,SPDR Dow Jones Industrial Average ETF
+Commodities,XAUUSD=X,yahoo,Oro Spot
+Commodities,XAGUSD=X,yahoo,Plata Spot
+Commodities,GC=F,yahoo,Oro Futuros
+Commodities,SI=F,yahoo,Plata Futuros
+Commodities,CL=F,yahoo,Petróleo Crudo WTI
+Commodities,NG=F,yahoo,Gas Natural
+Commodities,BZ=F,yahoo,Petróleo Crudo Brent
+Commodities,PL=F,yahoo,Platino Futuros
+Commodities,PA=F,yahoo,Paladio Futuros
+Índices,^DJI,yahoo,Dow Jones Industrial Average
+Índices,^NDX,yahoo,Nasdaq 100
+Índices,^GSPC,yahoo,S&P 500
+Índices,^RUT,yahoo,Russell 2000
+Divisas,EURUSD=X,yahoo,Euro/Dólar USA
+Divisas,USDJPY=X,yahoo,Dólar USA/Yen Japonés
+Divisas,GBPUSD=X,yahoo,Libra Esterlina/Dólar USA
+Divisas,USDCAD=X,yahoo,Dólar USA/Dólar Canadiense

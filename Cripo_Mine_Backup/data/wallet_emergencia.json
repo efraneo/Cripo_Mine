@@ -1,0 +1,10 @@
+{
+  "address": "4B9yET6earHUFTkgYrgWq8V3AHDcg5GiVYMCRH26iH5HC2TB6pnYycyKSwo7QBYtSnN384krkcs3o8Kt5USPBBnVEScWJhT",
+  "spend_key": "437bae71e1a6fcbfd502597762a84d1f6c0711aced729e255fe3f8e752647a87",
+  "view_key": "3c8e3d60a2ebb1a85b03f3a4d81f2ba3a1bdbc4ccbb95b5b714d275f311bbc52",
+  "spend_pub": "fb894c1ff8ad66a2e9c1b784ec0bc3a79fabad499e6972bb6b34baaf7f299041",
+  "view_pub": "ea0f91e54abf4e6e4a121d6a22735b7dc4feb3994355b22bcbe596ade2450677",
+  "creada": "2026-10-27 12:36:34",
+  "keccak": "pycryptodome",
+  "nota": "SOLO OFFLINE. Respalda este archivo: quien lo tenga controla los fondos. Puedes restaurar en la GUI Monero (Restore from keys) con estas claves."
+}

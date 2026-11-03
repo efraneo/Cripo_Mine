@@ -1,0 +1,4 @@
+fecha,activo,accion,origen,precision,resultado,RSI,MACD,volumen,tendencia,duracion
+2025-08-08 12:33:41,BTCUSDT,sell,IA+Tecnico,0.994,N/A,49.45,55.459,27150.0,bajista,N/A
+2025-08-08 13:10:06,BNBUSDT,sell,IA+Tecnico,0.9961,N/A,61.85,3.6128,1611.156,bajista,N/A
+2025-08-08 16:44:30,BTCUSDT,hold,IA+Tecnico,0.8224,N/A,74.22,41.1001,297.79,neutra,N/A

@@ -1,0 +1,76 @@
+Metadata-Version: 2.4
+Name: el_bot_de_efra
+Version: 1.0.0
+Summary: Bot de trading inteligente con IA, estrategias técnicas, Telegram, backtesting y Streamlit.
+Author-email: Efra <efraneo@gmail.com>
+License: MIT
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: streamlit>=1.35.0
+Requires-Dist: pandas>=2.2.2
+Requires-Dist: numpy>=1.26.4
+Requires-Dist: scikit-learn>=1.4.1
+Requires-Dist: yfinance>=0.2.36
+Requires-Dist: python-telegram-bot==13.15
+Requires-Dist: python-dotenv>=1.0.1
+Requires-Dist: plotly>=5.22.0
+Requires-Dist: matplotlib>=3.9.0
+Requires-Dist: tqdm>=4.66.4
+Requires-Dist: ta>=0.11.0
+
+# 🤖 Bot de Efra — Inteligencia Artificial y Análisis Técnico para Trading
+
+Bienvenido a **Bot de Efra**, un sistema modular de trading con inteligencia artificial, backtesting, estrategias técnicas, alertas automáticas y visualización interactiva. Diseñado para operar, aprender y escalar.
+
+---
+
+## 🚀 Características principales
+
+- 🧠 Predicciones con Machine Learning (IA)
+- 📚 Estrategias técnicas inteligentes (medias, RSI, MACD, rupturas)
+- 📈 Gráficos de velas y señales con Plotly
+- 🧪 Backtesting con métricas y equity curve
+- 📤 Alertas automatizadas por Telegram
+- 🧾 Historial de operaciones centralizado
+- 🧩 Modular, configurable y fácil de extender
+- 🧑‍💻 Panel en Streamlit para operar visualmente
+
+---
+
+## 🧱 Estructura del proyecto
+
+📁 bot_efra/
+├── app.py # Interfaz principal Streamlit
+├── el_bot_de_efra.py # Script principal del bot (main)
+├── trading_bot.py # IA, entrenamiento y ejecución
+├── estrategias.py # Estrategias técnicas modulares
+├── backtesting.py # Simulación histórica y métricas
+├── graficos.py # Visualización con Plotly
+├── fibonacci.py # Cálculo de niveles de Fibonacci
+├── telegram_alertas.py # Envío de mensajes vía Telegram
+├── guardar_historial.py # Registro de señales y predicciones
+├── historial.py # Consultas al historial
+├── guardar.py # Guardado de CSV, JSON, modelos
+├── comun.py # Carga de datos y utilidades
+├── config_loader.py # Variables y configuración segura
+├── logger.py # Logger centralizado
+├── run_backtesting.py # Ejecutar backtest desde consola
+├── actualizar_chat_id.py # Registrar nuevo chat_id de Telegram
+├── claves.csv # (Opcional) lista de claves
+├── datos_bot.db # (Opcional) base de datos local
+├── activos.csv / txt # Lista de activos a analizar
+├── .env / telegram.env # Claves API y Telegram
+└── logs/, data/, modelos/ # Carpetas auxiliares
+
+
+---
+
+## 🧰 Requisitos
+
+- Python 3.9+
+- Paquetes: `streamlit`, `yfinance`, `pandas`, `plotly`, `scikit-learn`, `python-telegram-bot`, `binance`
+
+Instala con:
+
+```bash
+pip install -r requirements.txt

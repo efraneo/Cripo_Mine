@@ -1,0 +1,2 @@
+[console_scripts]
+bot-efra = el_bot_de_efra:ejecutar_bot

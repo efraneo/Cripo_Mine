@@ -1,0 +1,1 @@
+const getDateLocale=t=>{let a=null;try{a=require("date-fns/locale/"+t)}catch(e){if(!t||t.length===2){t="en-US";a=require("date-fns/locale/en-US")}else{t=t.substr(0,2);a=getDateLocale(t)}}return a[t.replace("-","")]};exports.getDateLocale=getDateLocale;

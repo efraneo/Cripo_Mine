@@ -1,0 +1,5 @@
+🔍 Buscar dentro de todos los .py, .js, .html, .md, etc.
+gci -Recurse -Include *.py,*.js,*.html,*.md | Select-String -Pattern "use_column_width"
+
+🔍 Si quieres ver las líneas donde aparece:
+gci -Recurse -Include *.py,*.js,*.html | Select-String -Pattern "use_column_width" | ft Path, LineNumber, Line

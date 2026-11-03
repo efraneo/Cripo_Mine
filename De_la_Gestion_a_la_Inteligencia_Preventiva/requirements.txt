@@ -1,0 +1,9 @@
+streamlit
+pandas
+plotly
+openpyxl
+xlsxwriter
+Pillow
+bcrypt
+supabase
+groq

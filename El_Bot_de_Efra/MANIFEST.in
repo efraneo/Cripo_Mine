@@ -1,0 +1,35 @@
+# README y otros archivos raíz
+include README.md
+include requirements.txt
+include setup.py
+include pyproject.toml
+
+# Archivos de configuración sensibles (usa con cuidado)
+include *.env
+
+# Archivos de datos y logs
+recursive-include logs *.csv
+recursive-include csv *.csv
+recursive-include data *.csv
+recursive-include backtesting *.py
+recursive-include utils *.py
+
+# Recursos adicionales
+recursive-include charts *
+recursive-include graficos *
+
+# Archivos base
+include claves.csv
+include activos.csv
+include ultima_ejecucion.txt
+
+# Permite incluir historial de precisión
+include precision_ia.csv
+include accuracy_log.csv
+include historial.csv
+include errores_login.csv
+include ultimo_df.csv
+
+# DB y configuración opcional
+include datos_bot.db
+include config.yaml

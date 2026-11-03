@@ -1,0 +1,9 @@
+Quiero:
+
+- mejorar el tab usuarios, mas tablas, verificar y autorizar la IP del usuario, ingresos en el dia, valor invertido vs ganancias diarias, semanales y mensuales, filtrar por mes/año
+- mejorar tab configurar
+- mejorar tab auditoria
+- Los mensajes que me llegan al telegram, quiero que me lleguen con avatares e imágenes tipo gif para verificar, con imagen del grafico que me aparece en el tabs analizar y con las señales para que sea un mensaje bastante PRO institucional!!
+- Hacer manual de usuario en Word con imágenes y todo lo necesario!!
+- Hacer la pestaña acerca de... (lo que tiene y hace el bot, para presentarlo como marketing en el mercado para tenerlo como idea de negocio y comercializarlo)
+- Hacer que al ejecutar la orden de la inversión del activo, no importa que el trade suba  o baje, que siempre haga que el bot decida comprar o vender automatico acorde a la tendencia y la IA y la confianza, par que la inversión ejecutada pueda ganarse siempre utilizando también el stop los del 2%

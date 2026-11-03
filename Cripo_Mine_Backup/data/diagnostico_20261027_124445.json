@@ -1,0 +1,59 @@
+{
+  "ts": 1793123085.8771992,
+  "problemas": [
+    "Falta BTC_PAYOUT_ADDRESS \u2192 sin ella unMineable no puede pagarte",
+    "M\u00e9tricas VIEJAS (29885385 min) \u2192 el daemon no est\u00e1 escribiendo",
+    "Defender tiene 1 detecciones contra xmrig \u2192 el M\u00c9DICO debe restaurarlo de cuarentena",
+    "NING\u00daN pool usable: pon BTC_PAYOUT_ADDRESS o WALLET_XMR"
+  ],
+  "reparados": [
+    "Defender: 4 exclusiones aplicadas"
+  ],
+  "pendientes": [
+    "Telegram sin configurar: no ver\u00e1s alertas en el celular"
+  ],
+  "salud_pools": {
+    "pool.supportxmr.com:3333": {
+      "zombi": false,
+      "cooldown_restante": 0,
+      "ultimo_ok": 1793123036.564147,
+      "ultimo_ms": 177,
+      "detalle": "subscribe OK ()"
+    },
+    "gulf.moneroocean.stream:10128": {
+      "zombi": false,
+      "cooldown_restante": 0,
+      "ultimo_ok": 1793123036.5814195,
+      "ultimo_ms": 181,
+      "detalle": "subscribe OK ([['mining.notify', '231623141')"
+    },
+    "xmrpool.eu:9999": {
+      "zombi": false,
+      "cooldown_restante": 0,
+      "ultimo_ok": 1793123036.7317526,
+      "ultimo_ms": 360,
+      "detalle": "subscribe OK (None)"
+    },
+    "xmr.kryptex.network:7029": {
+      "zombi": true,
+      "cooldown_restante": 256,
+      "ultimo_ok": 0,
+      "ultimo_ms": 5180,
+      "detalle": "zombi: TCP OK pero 0 bytes al subscribe"
+    },
+    "rx.unmineable.com:3333": {
+      "zombi": true,
+      "cooldown_restante": 256,
+      "ultimo_ok": 0,
+      "ultimo_ms": 5069,
+      "detalle": "zombi: TCP OK pero 0 bytes al subscribe"
+    },
+    "rx.unmineable.com:443": {
+      "zombi": true,
+      "cooldown_restante": 256,
+      "ultimo_ok": 0,
+      "ultimo_ms": 5256,
+      "detalle": "zombi: TCP OK pero 0 bytes al subscribe"
+    }
+  }
+}

@@ -1,0 +1,11 @@
+Para el tradin
+
+streamlit run bot_velas.py
+
+Para el minado:
+
+streamlit run bot_minero.py
+
+Para ganancias:
+
+streamlit run bot_ganancias.py

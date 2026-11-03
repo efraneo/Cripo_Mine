@@ -1,0 +1,3 @@
+usuario,clave,nombre,correo,es_admin,ver_senales,usar_ia,ver_historial,ver_backtesting,estado
+8642239,dasb1512,Efraín Sarmiento Crespo,efraneo@gmail.com,True,True,True,True,True,activo
+1043003360,anacaro1190,Ana Carolina Barliza Barandica,anacaro1190@hotmail.com,False,True,True,True,True,activo

@@ -1,0 +1,182 @@
+2025-07-10 23:50:19,424 [INFO] 📄 Activos leídos desde activos.txt
+2025-07-10 23:51:13,989 [INFO] 🔍 Iniciando validación de símbolos...
+2025-07-10 23:51:15,040 [INFO] ➡️ Verificando símbolo: XAUUSDT
+2025-07-10 23:51:15,042 [WARNING] ⚠️ XAUUSDT no está en Binance. Intentando buscar en Yahoo Finance...
+2025-07-10 23:51:17,284 [ERROR] HTTP Error 404: 
+2025-07-10 23:51:18,313 [ERROR] 
+1 Failed download:
+2025-07-10 23:51:18,315 [ERROR] ['XAUUSDT=X']: YFPricesMissingError('possibly delisted; no price data found  (period=1d) (Yahoo error = "No data found, symbol may be delisted")')
+2025-07-10 23:51:19,438 [ERROR] HTTP Error 404: 
+2025-07-10 23:51:20,308 [ERROR] 
+1 Failed download:
+2025-07-10 23:51:20,309 [ERROR] ['XAUUSDT=X']: YFPricesMissingError('possibly delisted; no price data found  (period=1d) (Yahoo error = "No data found, symbol may be delisted")')
+2025-07-10 23:51:21,406 [ERROR] 
+1 Failed download:
+2025-07-10 23:51:21,407 [ERROR] ['XAUUSDT=X']: YFPricesMissingError('possibly delisted; no price data found  (period=7d) (Yahoo error = "No data found, symbol may be delisted")')
+2025-07-10 23:51:21,411 [ERROR] ❌ Yahoo Finance tampoco encontró datos para XAUUSDT=X
+2025-07-10 23:51:21,411 [INFO] ✅ Validación finalizada.
+2025-07-10 23:55:45,007 [INFO] 📄 Activos leídos desde activos.txt
+2025-07-10 23:55:49,037 [INFO] 🔍 Iniciando validación de símbolos...
+2025-07-10 23:55:50,795 [INFO] ➡️ Verificando símbolo: XAUUSDT
+2025-07-10 23:55:50,795 [WARNING] ⚠️ XAUUSDT no está en Binance. Intentando buscar en Yahoo Finance...
+2025-07-10 23:55:52,441 [ERROR] HTTP Error 404: 
+2025-07-10 23:55:53,328 [ERROR] 
+1 Failed download:
+2025-07-10 23:55:53,328 [ERROR] ['XAUUSDT=X']: YFPricesMissingError('possibly delisted; no price data found  (period=1d) (Yahoo error = "No data found, symbol may be delisted")')
+2025-07-10 23:55:54,300 [ERROR] HTTP Error 404: 
+2025-07-10 23:55:54,902 [ERROR] 
+1 Failed download:
+2025-07-10 23:55:54,903 [ERROR] ['XAUUSDT=X']: YFPricesMissingError('possibly delisted; no price data found  (period=1d) (Yahoo error = "No data found, symbol may be delisted")')
+2025-07-10 23:55:55,873 [ERROR] 
+1 Failed download:
+2025-07-10 23:55:55,873 [ERROR] ['XAUUSDT=X']: YFPricesMissingError('possibly delisted; no price data found  (period=7d) (Yahoo error = "No data found, symbol may be delisted")')
+2025-07-10 23:55:55,878 [ERROR] ❌ Yahoo Finance tampoco encontró datos para XAUUSDT=X
+2025-07-10 23:55:55,878 [INFO] ✅ Validación finalizada.
+2025-07-11 00:07:34,003 [INFO] 📄 Activos leídos desde activos.txt
+2025-07-11 00:08:16,897 [INFO] 🔍 Iniciando validación de símbolos...
+2025-07-11 00:08:18,397 [INFO] ➡️ Verificando símbolo: XAUUSDT
+2025-07-11 00:08:18,397 [WARNING] ⚠️ XAUUSDT no está en Binance. Intentando buscar en Yahoo Finance...
+2025-07-11 00:08:21,055 [ERROR] HTTP Error 404: 
+2025-07-11 00:08:22,354 [ERROR] 
+1 Failed download:
+2025-07-11 00:08:22,356 [ERROR] ['XAUUSDT=X']: YFPricesMissingError('possibly delisted; no price data found  (period=1d) (Yahoo error = "No data found, symbol may be delisted")')
+2025-07-11 00:08:23,831 [ERROR] HTTP Error 404: 
+2025-07-11 00:08:24,870 [ERROR] 
+1 Failed download:
+2025-07-11 00:08:24,870 [ERROR] ['XAUUSDT=X']: YFPricesMissingError('possibly delisted; no price data found  (period=1d) (Yahoo error = "No data found, symbol may be delisted")')
+2025-07-11 00:08:26,258 [ERROR] 
+1 Failed download:
+2025-07-11 00:08:26,258 [ERROR] ['XAUUSDT=X']: YFPricesMissingError('possibly delisted; no price data found  (period=7d) (Yahoo error = "No data found, symbol may be delisted")')
+2025-07-11 00:08:26,258 [ERROR] ❌ Yahoo Finance tampoco encontró datos para XAUUSDT=X
+2025-07-11 00:08:26,258 [INFO] ✅ Validación finalizada.
+2025-07-11 00:15:14,136 [INFO] 📄 Activos leídos desde activos.txt
+2025-07-11 00:15:21,219 [INFO] 🔍 Iniciando validación de símbolos...
+2025-07-11 00:15:22,940 [INFO] ➡️ Verificando símbolo: XAUUSDT
+2025-07-11 00:15:25,059 [ERROR] HTTP Error 404: 
+2025-07-11 00:15:26,036 [ERROR] 
+1 Failed download:
+2025-07-11 00:15:26,036 [ERROR] ['XAUUSD=X']: YFPricesMissingError('possibly delisted; no price data found  (period=7d) (Yahoo error = "No data found, symbol may be delisted")')
+2025-07-11 00:15:26,040 [ERROR] ❌ No se encontraron datos para el oro desde Yahoo Finance (XAUUSD=X).
+2025-07-11 00:15:26,040 [INFO] ✅ Validación finalizada.
+2025-07-11 00:18:01,005 [INFO] 📄 Activos leídos desde activos.txt
+2025-07-11 00:18:04,164 [INFO] 🔍 Iniciando validación de símbolos...
+2025-07-11 00:18:05,231 [INFO] ➡️ Verificando símbolo: XAUUSDT
+2025-07-11 00:18:10,076 [INFO] 🏅 XAUUSDT reconocido como ORO desde Yahoo Finance.
+2025-07-11 00:18:10,076 [INFO] ✅ Validación finalizada.
+2025-07-11 00:18:50,479 [INFO] 🟢 Bot en ejecución continua
+2025-07-11 00:19:50,520 [INFO] 🔁 Iniciando análisis de XAUUSDT
+2025-07-11 00:19:50,520 [INFO] 📥 Obteniendo datos para XAUUSDT desde oro
+2025-07-11 00:19:52,479 [ERROR] HTTP Error 404: 
+2025-07-11 00:19:53,881 [ERROR] 
+1 Failed download:
+2025-07-11 00:19:53,883 [ERROR] ['XAUUSDT']: YFPricesMissingError('possibly delisted; no price data found  (period=7d) (Yahoo error = "No data found, symbol may be delisted")')
+2025-07-11 00:19:53,888 [WARNING] 📉 Datos insuficientes para XAUUSDT
+2025-07-11 00:20:54,626 [INFO] 🔁 Iniciando análisis de XAUUSDT
+2025-07-11 00:20:54,626 [INFO] 📥 Obteniendo datos para XAUUSDT desde oro
+2025-07-11 00:20:55,419 [ERROR] HTTP Error 404: 
+2025-07-11 00:20:55,866 [ERROR] 
+1 Failed download:
+2025-07-11 00:20:55,866 [ERROR] ['XAUUSDT']: YFPricesMissingError('possibly delisted; no price data found  (period=7d) (Yahoo error = "No data found, symbol may be delisted")')
+2025-07-11 00:20:55,871 [WARNING] 📉 Datos insuficientes para XAUUSDT
+2025-07-11 00:26:52,680 [INFO] 📄 Activos leídos desde activos.txt
+2025-07-11 00:27:11,396 [INFO] 🔍 Iniciando validación de símbolos...
+2025-07-11 00:27:12,480 [INFO] ➡️ Verificando símbolo: XAUUSDT
+2025-07-11 00:27:13,925 [INFO] 🏅 XAUUSDT reconocido como ORO desde Yahoo Finance.
+2025-07-11 00:27:13,925 [INFO] ✅ Validación finalizada.
+2025-07-11 00:27:22,173 [INFO] 🟢 Bot en ejecución continua
+2025-07-11 00:28:22,209 [INFO] 🔁 Iniciando análisis de XAUUSDT
+2025-07-11 00:28:22,209 [INFO] 📥 Obteniendo datos para XAUUSDT desde oro
+2025-07-11 00:28:22,562 [INFO] ✅ Datos obtenidos de Yahoo Finance para GC=F con intervalo 60m, periodo 1d
+2025-07-11 00:28:22,562 [WARNING] 📉 Datos insuficientes para XAUUSDT
+2025-07-11 00:29:23,272 [INFO] 🔁 Iniciando análisis de XAUUSDT
+2025-07-11 00:29:23,272 [INFO] 📥 Obteniendo datos para XAUUSDT desde oro
+2025-07-11 00:29:23,643 [INFO] ✅ Datos obtenidos de Yahoo Finance para GC=F con intervalo 60m, periodo 1d
+2025-07-11 00:29:23,645 [WARNING] 📉 Datos insuficientes para XAUUSDT
+2025-07-11 00:30:24,365 [INFO] 🔁 Iniciando análisis de XAUUSDT
+2025-07-11 00:30:24,367 [INFO] 📥 Obteniendo datos para XAUUSDT desde oro
+2025-07-11 00:30:25,068 [INFO] ✅ Datos obtenidos de Yahoo Finance para GC=F con intervalo 60m, periodo 1d
+2025-07-11 00:30:25,069 [WARNING] 📉 Datos insuficientes para XAUUSDT
+2025-07-11 00:47:12,809 [INFO] 📄 Activos leídos desde activos.txt
+2025-07-11 00:47:18,602 [INFO] 🔍 Iniciando validación de símbolos...
+2025-07-11 00:47:20,610 [INFO] ➡️ Verificando símbolo: XAUUSDT
+2025-07-11 00:47:21,387 [INFO] 🏅 XAUUSDT reconocido como ORO desde Yahoo Finance.
+2025-07-11 00:47:21,387 [INFO] ✅ Validación finalizada.
+2025-07-11 00:47:32,757 [INFO] 🟢 Bot en ejecución continua
+2025-07-11 00:48:32,788 [INFO] 🔁 Iniciando análisis de XAUUSDT
+2025-07-11 00:48:32,788 [INFO] 📥 Obteniendo datos para XAUUSDT desde oro
+2025-07-11 00:48:34,977 [ERROR] HTTP Error 404: 
+2025-07-11 00:48:35,994 [ERROR] 
+1 Failed download:
+2025-07-11 00:48:35,994 [ERROR] ['XAUUSDT']: YFPricesMissingError('possibly delisted; no price data found  (period=7d) (Yahoo error = "No data found, symbol may be delisted")')
+2025-07-11 00:48:36,000 [WARNING] 📉 Datos insuficientes para XAUUSDT
+2025-07-11 00:49:36,726 [INFO] 🔁 Iniciando análisis de XAUUSDT
+2025-07-11 00:49:36,726 [INFO] 📥 Obteniendo datos para XAUUSDT desde oro
+2025-07-11 00:49:37,443 [ERROR] HTTP Error 404: 
+2025-07-11 00:49:37,909 [ERROR] 
+1 Failed download:
+2025-07-11 00:49:37,910 [ERROR] ['XAUUSDT']: YFPricesMissingError('possibly delisted; no price data found  (period=7d) (Yahoo error = "No data found, symbol may be delisted")')
+2025-07-11 00:49:37,914 [WARNING] 📉 Datos insuficientes para XAUUSDT
+2025-07-11 01:07:34,146 [INFO] 📄 Activos leídos desde activos.txt
+2025-07-11 01:07:38,289 [INFO] 🔍 Iniciando validación de símbolos...
+2025-07-11 01:07:39,361 [INFO] ➡️ Verificando símbolo: XAUUSDT
+2025-07-11 01:07:44,790 [INFO] 🏅 XAUUSDT reconocido como ORO desde Yahoo Finance.
+2025-07-11 01:07:44,790 [INFO] ✅ Validación finalizada.
+2025-07-11 01:07:54,454 [INFO] 🟢 Bot en ejecución continua
+2025-07-11 01:08:54,492 [INFO] 🔁 Iniciando análisis de XAUUSDT
+2025-07-11 01:08:54,492 [INFO] 📥 Obteniendo datos para XAUUSDT desde oro
+2025-07-11 01:08:54,495 [INFO] 📊 Descargando datos de Binance para XAUUSDT...
+2025-07-11 01:08:54,732 [ERROR] ❌ Error al obtener datos de Binance para XAUUSDT: APIError(code=-1121): Invalid symbol.
+2025-07-11 01:08:54,732 [WARNING] 📉 Datos insuficientes para XAUUSDT
+2025-07-11 01:09:55,464 [INFO] 🔁 Iniciando análisis de XAUUSDT
+2025-07-11 01:09:55,466 [INFO] 📥 Obteniendo datos para XAUUSDT desde oro
+2025-07-11 01:09:55,466 [INFO] 📊 Descargando datos de Binance para XAUUSDT...
+2025-07-11 01:09:55,706 [ERROR] ❌ Error al obtener datos de Binance para XAUUSDT: APIError(code=-1121): Invalid symbol.
+2025-07-11 01:09:55,706 [WARNING] 📉 Datos insuficientes para XAUUSDT
+2025-07-11 01:10:56,403 [INFO] 🔁 Iniciando análisis de XAUUSDT
+2025-07-11 01:10:56,403 [INFO] 📥 Obteniendo datos para XAUUSDT desde oro
+2025-07-11 01:10:56,405 [INFO] 📊 Descargando datos de Binance para XAUUSDT...
+2025-07-11 01:10:56,638 [ERROR] ❌ Error al obtener datos de Binance para XAUUSDT: APIError(code=-1121): Invalid symbol.
+2025-07-11 01:10:56,638 [WARNING] 📉 Datos insuficientes para XAUUSDT
+2025-07-11 01:11:57,361 [INFO] 🔁 Iniciando análisis de XAUUSDT
+2025-07-11 01:11:57,361 [INFO] 📥 Obteniendo datos para XAUUSDT desde oro
+2025-07-11 01:11:57,361 [INFO] 📊 Descargando datos de Binance para XAUUSDT...
+2025-07-11 01:11:57,590 [ERROR] ❌ Error al obtener datos de Binance para XAUUSDT: APIError(code=-1121): Invalid symbol.
+2025-07-11 01:11:57,590 [WARNING] 📉 Datos insuficientes para XAUUSDT
+2025-07-11 01:12:58,335 [INFO] 🔁 Iniciando análisis de XAUUSDT
+2025-07-11 01:12:58,335 [INFO] 📥 Obteniendo datos para XAUUSDT desde oro
+2025-07-11 01:12:58,335 [INFO] 📊 Descargando datos de Binance para XAUUSDT...
+2025-07-11 01:12:58,581 [ERROR] ❌ Error al obtener datos de Binance para XAUUSDT: APIError(code=-1121): Invalid symbol.
+2025-07-11 01:12:58,581 [WARNING] 📉 Datos insuficientes para XAUUSDT
+2025-07-11 01:13:59,280 [INFO] 🔁 Iniciando análisis de XAUUSDT
+2025-07-11 01:13:59,280 [INFO] 📥 Obteniendo datos para XAUUSDT desde oro
+2025-07-11 01:13:59,280 [INFO] 📊 Descargando datos de Binance para XAUUSDT...
+2025-07-11 01:13:59,512 [ERROR] ❌ Error al obtener datos de Binance para XAUUSDT: APIError(code=-1121): Invalid symbol.
+2025-07-11 01:13:59,512 [WARNING] 📉 Datos insuficientes para XAUUSDT
+2025-07-11 01:20:37,674 [INFO] 📄 Iniciando Listado del Bot de Efra!
+2025-07-11 01:20:44,322 [INFO] 🔍 Iniciando validación de símbolos...
+2025-07-11 01:20:45,411 [INFO] ➡️ Verificando símbolo: XAUUSDT
+2025-07-11 01:20:45,427 [INFO] 🔄 Redirigiendo XAUUSDT a Yahoo Finance como 'GC=F'
+2025-07-11 01:20:46,910 [INFO] ✅ Datos obtenidos de Yahoo Finance para GC=F con intervalo 60m, periodo 1d
+2025-07-11 01:20:46,910 [INFO] ✅ Validación finalizada.
+2025-07-11 01:34:11,865 [INFO] 📄 Iniciando Listado del Bot de Efra!
+2025-07-11 01:34:16,210 [INFO] 🔍 Iniciando validación de símbolos...
+2025-07-11 01:34:19,064 [INFO] ➡️ Verificando símbolo: XAUUSDT
+2025-07-11 01:34:19,064 [INFO] 🔄 Redirigiendo XAUUSDT a Yahoo Finance como 'GC=F'
+2025-07-11 01:34:20,135 [INFO] ✅ Datos obtenidos de Yahoo Finance para GC=F con intervalo 60m, periodo 1d
+2025-07-11 01:34:20,137 [INFO] ✅ Validación finalizada.
+2025-07-11 01:34:28,187 [INFO] 🟢 Bot en ejecución continua
+2025-07-11 01:35:28,246 [INFO] 🔁 Iniciando análisis de XAUUSDT
+2025-07-11 01:35:28,246 [INFO] 📥 Obteniendo datos para XAUUSDT desde oro
+2025-07-11 01:35:28,579 [WARNING] 📉 Datos insuficientes para XAUUSDT
+2025-07-20 14:10:21,130 | INFO | bot_efra | 🔑 Variables de entorno cargadas desde telegram.env
+2025-07-20 14:10:21,132 | INFO | bot_efra | 🔑 Variables de entorno cargadas desde binance.env
+2025-07-20 14:10:21,132 | INFO | bot_efra | 🔑 Variables de entorno cargadas desde credenciales.env
+2025-07-20 14:24:57,673 | INFO | bot_efra | 🔑 Variables de entorno cargadas desde telegram.env
+2025-07-20 14:24:57,676 | INFO | bot_efra | 🔑 Variables de entorno cargadas desde binance.env
+2025-07-20 14:24:57,676 | INFO | bot_efra | 🔑 Variables de entorno cargadas desde credenciales.env
+2025-07-20 14:31:49,965 | INFO | bot_efra | 🔑 Variables de entorno cargadas desde telegram.env
+2025-07-20 14:31:49,972 | INFO | bot_efra | 🔑 Variables de entorno cargadas desde binance.env
+2025-07-20 14:31:49,973 | INFO | bot_efra | 🔑 Variables de entorno cargadas desde credenciales.env
+2025-07-20 14:43:27,240 | INFO | BotDeEfra | 🔑 Variables de entorno cargadas desde telegram.env
+2025-07-20 14:43:27,240 | INFO | BotDeEfra | 🔑 Variables de entorno cargadas desde binance.env
+2025-07-20 14:43:27,240 | INFO | BotDeEfra | 🔑 Variables de entorno cargadas desde credenciales.env

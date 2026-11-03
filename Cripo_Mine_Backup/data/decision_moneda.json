@@ -1,0 +1,45 @@
+{
+ "ruta": "xmr_mo",
+ "ts": 1793720059.7784395,
+ "motivo_cambio": "",
+ "alerta_precio": "Binance XMR diverge 81% de Kraken: para XMR se usa Kraken (dato Binance ignorado)",
+ "tabla": [
+  {
+   "id": "xmr_mo",
+   "nombre": "XMR @ MoneroOcean (xmrig-MO)",
+   "moneda": "XMR",
+   "viable": true,
+   "motivo": "",
+   "hashrate_est": 650.0,
+   "usd_teorico": 0.026390108108084072,
+   "usd_medido": 0.0,
+   "nota_medido": "",
+   "usd": 0.026390108108084072
+  },
+  {
+   "id": "btc_vrsc",
+   "nombre": "Verus @ Zpool (SRBMiner)",
+   "moneda": "BTC",
+   "viable": false,
+   "motivo": "falta BTC_PAYOUT_ADDRESS en secrets",
+   "hashrate_est": 0.0,
+   "usd_teorico": 0.0,
+   "usd_medido": 0.0,
+   "nota_medido": "",
+   "usd": -1.0
+  },
+  {
+   "id": "btc_gr",
+   "nombre": "GhostRider @ Zpool (SRBMiner)",
+   "moneda": "BTC",
+   "viable": false,
+   "motivo": "falta BTC_PAYOUT_ADDRESS en secrets",
+   "hashrate_est": 0.0,
+   "usd_teorico": 0.0,
+   "usd_medido": 0.0,
+   "nota_medido": "",
+   "usd": -1.0
+  }
+ ],
+ "reevaluar": false
+}

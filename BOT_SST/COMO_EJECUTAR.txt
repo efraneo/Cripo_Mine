@@ -1,0 +1,4 @@
+# BOT_SST launcher
+# Ejecutar desde PowerShell:
+#   cd C:\software_phyton\BOT_SST
+#   python -m streamlit run poster_sst_bot/app_streamlit.py --server.port 8503

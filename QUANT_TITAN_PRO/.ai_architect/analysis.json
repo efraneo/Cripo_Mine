@@ -1,0 +1,57 @@
+{
+    "summary": {
+        "total_files": 2,
+        "python_files": 2,
+        "total_classes": 1,
+        "total_functions": 1,
+        "dependency_modules": 0,
+        "duplicate_groups": 0,
+        "average_complexity": 1.0
+    },
+    "files": [
+        {
+            "imports": [],
+            "classes": [],
+            "functions": [],
+            "total_lines": 14,
+            "complexity": 1
+        },
+        {
+            "imports": [],
+            "classes": [
+                {
+                    "name": "TradingOrchestrator",
+                    "line": 1,
+                    "methods": [
+                        "run_cycle"
+                    ],
+                    "bases": []
+                }
+            ],
+            "functions": [
+                {
+                    "name": "run_cycle",
+                    "line": 3,
+                    "arguments": 1,
+                    "decorators": []
+                }
+            ],
+            "total_lines": 18,
+            "complexity": 1
+        }
+    ],
+    "dependencies": {},
+    "duplicates": [],
+    "metrics": {
+        "total_files": 2,
+        "python_files": 2,
+        "total_classes": 1,
+        "total_functions": 1,
+        "dependency_modules": 0,
+        "duplicate_groups": 0,
+        "average_complexity": 1.0
+    },
+    "recommendations": [
+        "No immediate structural recommendations."
+    ]
+}

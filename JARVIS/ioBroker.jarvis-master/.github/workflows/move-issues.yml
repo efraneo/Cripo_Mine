@@ -1,0 +1,48 @@
+name: Move Issues
+
+on:
+  push:
+    paths:
+      - 'package.json'
+
+env:
+  GH_TOKEN: ${{ secrets.TOKEN }}
+
+jobs:
+  prerequisites:
+    runs-on: ubuntu-latest
+    outputs:
+      VERSION: ${{ steps.version.outputs.VERSION }}
+    steps:
+      - uses: actions/checkout@v4
+      
+        # get version
+      - name: Get Version
+        id: version
+        run: |
+            V=$(jq .version package.json | sed 's/"//g')
+            echo "VERSION=v$V" >> $GITHUB_OUTPUT # for subsequent jobs
+            echo v$V
+  
+  move-issues:
+    needs: prerequisites
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: process-issues
+        run: |
+            minorVersion=$(echo ${{ needs.prerequisites.outputs.VERSION }} | cut -d. -f1,2).x
+            
+            # add gh extension
+            gh extension install heaths/gh-merge-json
+            
+            # get issues [ by label "#status: implemented-locally" (LA_kwDODbcoCM8AAAABfBUbZQ) ]
+            gh issue list --state "all" --limit 9999 --label "#status: implemented-locally :hammer_and_wrench:" --json id,labels,number,state,title > issues.json
+            
+            # extract issues
+            ISSUES=$(cat issues.json | jq -c '.[] | [ .id, .number, [ .labels[].name ]]')
+            
+            #
+            cd $GITHUB_WORKSPACE
+            cd .github && cd workflows
+            node move-issues.js "${{ needs.prerequisites.outputs.VERSION }}" "$ISSUES"

@@ -1,0 +1,161 @@
+"""
+control.py — Canal de control compartido (dashboard ↔ daemon ↔ Telegram)
+=========================================================================
+El motor agresivo corre como DAEMON independiente (`run_miner.py`) para que
+la minería siga aunque cierres Streamlit o tu navegador. Este módulo define
+el "mando a distancia" por archivo (data/control.json) que los tres actores
+comparten:
+
+  • app.py (Streamlit)   → botones Iniciar/Detener/Pausar el daemon
+  • run_miner.py         → lee órdenes cada pocos segundos
+  • telegram_bot.py      → comandos remotos (/pausar /reanudar /cambiar)
+
+Claves del archivo:
+  daemon_pid      → PID del daemon en ejecución (None si parado)
+  action          → "none" | "start" | "stop"
+  paused_manual   → pausa manual (botón o /pausar)
+  paused_thermal  → pausa por temperatura (watchdog)
+  force_target    → "" | "next" | id de objetivo del motor agresivo
+  threads         → hilos CPU solicitados (None = usar secrets)
+  updated_by      → quién hizo el último cambio (app/telegram/watchdog)
+"""
+import json
+import os
+import subprocess
+import sys
+import threading
+import time
+
+from config import BASE_DIR, DATA_DIR, LOG_DIR
+
+CONTROL_FILE = os.path.join(DATA_DIR, "control.json")
+_LOCK = threading.Lock()
+
+try:
+    import psutil
+except Exception:
+    psutil = None
+
+
+# ---------------------------------------------------------------------------
+def read() -> dict:
+    """Lee el estado de control (nunca explota si falta o está corrupto)."""
+    base = {
+        "daemon_pid": None, "action": "none", "action_ts": 0.0,
+        "paused_manual": False, "paused_thermal": False,
+        "force_target": "", "threads": None, "updated_by": "",
+    }
+    try:
+        with open(CONTROL_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            base.update({k: v for k, v in data.items() if k in base})
+    except Exception:
+        pass
+    return base
+
+
+def write(**kwargs) -> dict:
+    """Fusiona cambios en control.json de forma atómica y thread-safe."""
+    with _LOCK:
+        state = read()
+        state.update(kwargs)
+        state["action_ts"] = time.time()
+        tmp = CONTROL_FILE + ".tmp"
+        try:
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(state, f, indent=2)
+            os.replace(tmp, CONTROL_FILE)
+        except Exception:
+            pass
+        return state
+
+
+# ---------------------------------------------------------------------------
+def is_pid_alive(pid) -> bool:
+    """Comprueba si un PID vive (multiplataforma, sin explotar)."""
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        return False
+    if pid <= 0:
+        return False
+    if psutil is not None:
+        return psutil.pid_exists(pid)
+    # Fallback sin psutil: señal 0 = "¿existe?"
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def daemon_alive() -> bool:
+    return is_pid_alive(read().get("daemon_pid"))
+
+
+def daemon_pid():
+    return read().get("daemon_pid")
+
+
+# ---------------------------------------------------------------------------
+def start_daemon(mode: str = "aggressive"):
+    """Arranca run_miner.py como proceso DESACOPLADO de Streamlit.
+
+    En Windows usa DETACHED_PROCESS + CREATE_NEW_PROCESS_GROUP; en Linux/macOS
+    start_new_session=True. La salida va a logs/daemon.log.
+    """
+    if daemon_alive():
+        return daemon_pid()
+    os.makedirs(LOG_DIR, exist_ok=True)
+    log_path = os.path.join(LOG_DIR, "daemon.log")
+    logf = open(log_path, "ab")
+    cmd = [sys.executable, "-u", os.path.join(BASE_DIR, "run_miner.py"),
+           "--mode", mode]
+    kwargs = {}
+    if os.name == "nt":
+        kwargs["creationflags"] = (subprocess.CREATE_NEW_PROCESS_GROUP |
+                                   subprocess.DETACHED_PROCESS)
+    else:
+        kwargs["start_new_session"] = True
+    try:
+        proc = subprocess.Popen(cmd, cwd=BASE_DIR, stdout=logf,
+                                stderr=subprocess.STDOUT, **kwargs)
+    except Exception:
+        logf.close()
+        raise
+    write(daemon_pid=proc.pid, action="none", paused_manual=False,
+          paused_thermal=False, force_target="", updated_by="app")
+    return proc.pid
+
+
+def stop_daemon(timeout: float = 15.0) -> bool:
+    """Pide parada amable; si no obedece, termina el proceso a la fuerza."""
+    pid = daemon_pid()
+    if pid is None:
+        write(action="none", daemon_pid=None, updated_by="app")
+        return True
+    write(action="stop", updated_by="app")
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        if not is_pid_alive(pid):
+            write(action="none", daemon_pid=None)
+            return True
+        time.sleep(0.7)
+    # Escalada: terminar directamente
+    try:
+        if psutil is not None:
+            p = psutil.Process(int(pid))
+            p.terminate()
+            try:
+                p.wait(timeout=6)
+            except Exception:
+                p.kill()
+        else:
+            os.kill(int(pid), 9)
+    except Exception:
+        pass
+    final = not is_pid_alive(pid)
+    if final:
+        write(action="none", daemon_pid=None)
+    return final

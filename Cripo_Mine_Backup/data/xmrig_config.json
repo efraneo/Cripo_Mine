@@ -1,0 +1,45 @@
+{
+  "autosave": false,
+  "donate-level": 0,
+  "cpu": {
+    "enabled": true,
+    "hw-aes": null,
+    "priority": 2,
+    "max-threads-hint": 10,
+    "huge-pages": true,
+    "huge-pages-jit": true,
+    "memory-pool": true,
+    "yield": true,
+    "asm": true
+  },
+  "randomx": {
+    "init": -1,
+    "mode": "auto",
+    "1gb-pages": true,
+    "rdmsr": true,
+    "wrmsr": true,
+    "numa": true,
+    "scratchpad_prefetch_mode": 1
+  },
+  "pools": [
+    {
+      "url": "gulf.moneroocean.stream:10128",
+      "user": "4B9yET6earHUFTkgYrgWq8V3AHDcg5GiVYMCRH26iH5HC2TB6pnYycyKSwo7QBYtSnN384krkcs3o8Kt5USPBBnVEScWJhT",
+      "pass": "x",
+      "rig-id": null,
+      "nicehash": false,
+      "tls": false,
+      "keepalive": true,
+      "enabled": true
+    }
+  ],
+  "print-time": 10,
+  "health-print-time": 60,
+  "http": {
+    "enabled": true,
+    "host": "127.0.0.1",
+    "port": 4068,
+    "access-token": null,
+    "restricted": true
+  }
+}
