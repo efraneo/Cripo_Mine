@@ -145,17 +145,17 @@ def validate_environment() -> bool:
             "(MoneroOcean/xmrpool.eu/SupportXMR). Cuando unMineable "
             "reviva, el motor vuelve solo al pago BTC→Binance.", "info")
     if not tg.configured(cfg):
-        log("Telegram sin configurar: habrá alertas en el log pero no en tu "
+        log("Telegram sin configurar: habra alertas en el log pero no en tu "
             "celular", "warn")
     # v3.6: sin administrador, xmrig no aplica el mod MSR y el hashrate se
     # queda a menos de la mitad (sobre todo en AMD Ryzen).
     if os.name == "nt" and not es_admin():
-        log("SIN PERMISOS DE ADMINISTRADOR: el mod MSR no se aplicará y el "
-            "hashrate será menor. Cierra el bot (DETENER_TODO.bat) y corre "
+        log("SIN PERMISOS DE ADMINISTRADOR: el mod MSR no se aplicara y el "
+            "hashrate sera menor. Cierra el bot (DETENER_TODO.bat) y corre "
             "CORRER_BOT.bat aceptando la ventanita de Windows.", "warn")
-        tg.send(cfg, "<b>Hashrate limitado</b>: el bot NO está corriendo "
-                     "como ADMINISTRADOR, así que xmrig no puede aplicar el "
-                     "mod MSR y minarás a menos de la mitad de tu "
+        tg.send(cfg, "Hashrate limitado: el bot NO esta corriendo "
+                     "como ADMINISTRADOR, asi que xmrig no puede aplicar el "
+                     "mod MSR y minaras a menos de la mitad de tu "
                      "potencial. Cierra con DETENER_TODO.bat y vuelve a "
                      "abrir CORRER_BOT.bat aceptando la ventanita de "
                      "Windows (UAC).", "warn")
