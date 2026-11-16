@@ -7,6 +7,11 @@ from datetime import datetime
 def show_auth():
     st.markdown("<h1 style='text-align: center;'>🔒 Acceso al Bot Premium</h1>", unsafe_allow_html=True)
 
+    # Aviso temprano si falta el esquema en Supabase
+    if db.storage_status() == "supabase-missing-tables":
+        st.error("⚠️ Supabase está configurado (SUPABASE_URL/SUPABASE_KEY) pero **faltan las tablas**. "
+                 "Ejecuta `SUPABASE_SCHEMA.sql` en Supabase → SQL Editor y recarga esta página.")
+
     # Diagnóstico SEGURO: nunca muestra valores, solo si el acceso maestro está activo
     _ms = db.master_status()
     if _ms["configured"]:
@@ -53,6 +58,7 @@ def show_login():
                     st.session_state.is_master = is_master
                     if not is_master:
                         db.update_login_stats(usuario)
+                    db.log_login_event(usuario, user[1], es_master=is_master, evento="login")
                     st.rerun()
             else: st.error("Usuario o clave incorrectos.")
     
