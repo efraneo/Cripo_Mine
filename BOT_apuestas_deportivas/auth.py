@@ -6,13 +6,6 @@ from datetime import datetime
 
 def show_auth():
     st.markdown("<h1 style='text-align: center;'>🔒 Acceso al Bot Premium</h1>", unsafe_allow_html=True)
-
-    # Diagnóstico SEGURO: nunca muestra valores, solo si el acceso maestro está activo
-    _ms = db.master_status()
-    if _ms["configured"]:
-        st.caption(f"🔑 Acceso maestro **habilitado** (Secrets: usuario {_ms['usuario_len']} caracteres, clave {_ms['clave_len']} caracteres).")
-    else:
-        st.caption("ℹ️ Acceso maestro **no configurado**. En Secrets deben existir `USUARIO_MASTER` y `CLAVE_MASTER` con valores no vacíos.")
     
     if 'auth_view' not in st.session_state:
         st.session_state.auth_view = 'login'
