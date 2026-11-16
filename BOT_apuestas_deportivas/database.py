@@ -73,9 +73,31 @@ def init_db():
 
 def master_credentials_configured():
     """El acceso maestro solo se habilita si USUARIO_MASTER y CLAVE_MASTER están en Secrets y NO vacíos."""
-    u = _secret("USUARIO_MASTER")
-    p = _secret("CLAVE_MASTER")
-    return bool(u and str(u).strip()) and bool(p and str(p))
+    try:
+        u = _secret("USUARIO_MASTER")
+        p = _secret("CLAVE_MASTER")
+        return bool(u and str(u).strip()) and bool(p and str(p))
+    except Exception:
+        return False
+
+
+def master_status():
+    """Diagnóstico SEGURO para la pantalla de login: solo dice si están configurados (y longitudes), nunca valores."""
+    try:
+        u = _secret("USUARIO_MASTER")
+        p = _secret("CLAVE_MASTER")
+        u_ok = bool(u and str(u).strip())
+        p_ok = bool(p and str(p))
+        return {
+            "configured": u_ok and p_ok,
+            "usuario_set": u_ok,
+            "clave_set": p_ok,
+            "usuario_len": len(str(u)) if u is not None else 0,
+            "clave_len": len(str(p)) if p is not None else 0,
+        }
+    except Exception:
+        return {"configured": False, "usuario_set": False, "clave_set": False,
+                "usuario_len": 0, "clave_len": 0}
 
 
 def verify_master_login(usuario, clave):
@@ -83,21 +105,28 @@ def verify_master_login(usuario, clave):
 
     Devuelve un usuario sintético con perfil administrador si coincide, o None.
     Nunca se persiste en la BD ni requiere aprobación/membresía.
+    Soporta contraseñas con caracteres no-ASCII (comparación en bytes).
     """
-    if not master_credentials_configured():
+    try:
+        if not master_credentials_configured():
+            return None
+        mu = str(_secret("USUARIO_MASTER")).strip()
+        mp = str(_secret("CLAVE_MASTER"))
+        user_in = (usuario or "").strip()
+        clave_in = clave or ""
+        ok_user = hmac.compare_digest(mu.encode("utf-8"), user_in.encode("utf-8"))
+        ok_pass = hmac.compare_digest(mp.encode("utf-8"), clave_in.encode("utf-8"))
+        if ok_user and ok_pass:
+            today = datetime.now().strftime("%Y-%m-%d")
+            # Tupla con la MISMA forma que 'SELECT * FROM users':
+            # (id, identificacion, usuario, clave, correo, fecha_nac, fecha_inicio, fecha_final,
+            #  perfil, numero_ingresos, analisis_realizados, estado, membresia)
+            return (0, "MASTER", mu, "", "", "1970-01-01", today, "NA",
+                    "administrador", 0, 0, "aprobado", "paga")
         return None
-    mu = str(_secret("USUARIO_MASTER")).strip()
-    mp = str(_secret("CLAVE_MASTER"))
-    user_in = (usuario or "").strip()
-    clave_in = clave or ""
-    if hmac.compare_digest(mu, user_in) and hmac.compare_digest(mp, clave_in):
-        today = datetime.now().strftime("%Y-%m-%d")
-        # Tupla con la MISMA forma que 'SELECT * FROM users':
-        # (id, identificacion, usuario, clave, correo, fecha_nac, fecha_inicio, fecha_final,
-        #  perfil, numero_ingresos, analisis_realizados, estado, membresia)
-        return (0, "MASTER", mu, "", "", "1970-01-01", today, "NA",
-                "administrador", 0, 0, "aprobado", "paga")
-    return None
+    except Exception:
+        # Jamás romper el login: si algo falla, cae al login normal de la BD
+        return None
 
 
 def hash_password(password):
