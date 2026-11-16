@@ -1,6 +1,6 @@
-streamlit
+streamlit>=1.51
 pandas
 pytz
 requests
-openai
+openai>=1.0
 plotly
