@@ -31,21 +31,14 @@ def show_login():
         submit = st.form_submit_button("Entrar")
         
         if submit:
-            # Acceso maestro (Secrets: USUARIO_MASTER / CLAVE_MASTER) con prioridad;
-            # si no coincide, cae al login normal de la BD.
-            user = db.verify_master_login(usuario, clave)
-            is_master = user is not None
-            if user is None:
-                user = db.verify_login(usuario, clave)
+            user = db.verify_login(usuario, clave)
             if user:
                 if user[11] == 'pendiente': st.warning("Tu cuenta está en espera de aprobación por el Administrador.")
                 elif user[11] == 'rechazado': st.error("Tu cuenta ha sido rechazada.")
                 elif user[11] == 'aprobado':
                     st.session_state.logged_in = True
                     st.session_state.user = user
-                    st.session_state.is_master = is_master
-                    if not is_master:
-                        db.update_login_stats(usuario)
+                    db.update_login_stats(usuario)
                     st.rerun()
             else: st.error("Usuario o clave incorrectos.")
     

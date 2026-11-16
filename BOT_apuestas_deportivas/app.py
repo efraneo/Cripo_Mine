@@ -60,7 +60,6 @@ def main():
 def logout():
     st.session_state.logged_in = False
     st.session_state.user = None
-    st.session_state.is_master = False
     st.rerun()
 
 if __name__ == "__main__":
