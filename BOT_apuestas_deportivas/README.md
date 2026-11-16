@@ -37,65 +37,22 @@ el siguiente paso natural es conectar esas líneas al mismo motor de valor (+EV)
 ## 📁 Estructura
 
 ```
-app.py             # Navegación + control de membresía/login
-auth.py            # Login / registro / recuperación + banner de persistencia
-dashboard.py       # Admin: usuarios + 🧠 Rendimiento de picks + 🛠️ Panel MASTER (CRUD + historial)
-betting_app.py     # UI del bot: partidos, /sports de la semana, IA, historial
-market_model.py    # Motor estadístico (stdlib puro)
-betplay.py         # Liga BetPlay vía API-Football (opcional: secret football_api)
-database.py        # Persistencia dual: Supabase (Postgres) si hay SUPABASE_URL/KEY; si no, SQLite
-SUPABASE_SCHEMA.sql  # Esquema para copiar/pegar en Supabase → SQL Editor
-email_sender.py    # Recuperación de contraseña (Gmail SMTP)
-payment.py         # Simulador de pago PSE (membresía 30 días)
+app.py            # Navegación + control de membresía/login
+auth.py           # Login / registro / recuperación por correo
+dashboard.py      # Admin: usuarios + 🧠 Rendimiento de picks (liquidación)
+betting_app.py    # UI del bot: partidos, /sports de la semana, IA, historial
+market_model.py   # Motor estadístico (stdlib puro)
+betplay.py        # Liga BetPlay vía API-Football (opcional: secret football_api)
+database.py       # SQLite: users + picks (liquidación automática, métricas)
+email_sender.py   # Recuperación de contraseña (Gmail SMTP)
+payment.py        # Simulador de pago PSE (membresía 30 días)
 ```
 
-## 🗄️ Supabase — para que NUNCA se borren tus datos (OBLIGATORIO en producción)
-
-Streamlit Cloud **borra el disco en cada redeploy**, así que SQLite (`bot_ad.db`) no sobrevive.
-Con Supabase (Postgres gratuito) todo persiste entre redeploys.
-
-**Paso 1** — Crea el proyecto free en [supabase.com](https://supabase.com).
-**Paso 2** — En el proyecto: **SQL Editor → New query** → pega **todo** el contenido de
-[`SUPABASE_SCHEMA.sql`](SUPABASE_SCHEMA.sql) (incluido en el repo) → **Run**.
-Debe crear las tablas `users`, `picks` y `login_history` y mostrarte 3 filas en el SELECT final.
-**Paso 3** — **Project Settings → API**: copia la **Project URL** y la **service_role key**
-(NO uses la `anon` key: la app corre en el servidor, esa sí puede tocar todo — trátala como una contraseña).
-**Paso 4** — En **Streamlit Cloud → App → Settings → Secrets**, pega:
-
-```toml
-SUPABASE_URL = "https://tu-proyecto.supabase.co"
-SUPABASE_KEY = "eyJhbGciOi...tu service_role key..."
-```
-
-**Paso 5** — Redeploy. Deberás ver el banner verde: **"🗄️ Persistencia: Supabase"**.
-Si falta algo, la app lo dirá en pantalla ("faltan las tablas" o "corriendo en SQLite local").
-
-> Sin `SUPABASE_URL`/`SUPABASE_KEY` la app funciona igual pero en SQLite local (se borra en redeploy).
-
-### Panel MASTER — control total, solo tú
-
-Si entras con las credenciales maestras, apareces en **Panel Admin** con la sección
-**"🛠️ Panel MASTER — Control Total (solo tú)"**:
-
-| Pestaña | Qué permite |
-|---|---|
-| ✏️ Editar | Edición en tabla: correo, fechas, perfil, estado, membresía, ingresos, análisis. Guarda de una vez. |
-| ➕ Crear | Alta manual directa (entra sin aprobación) |
-| 🗑️ Borrar | Borrado con confirmación |
-| ⏳ Extender tiempo | +7/+30/+90 días (resta desde hoy o desde el vencimiento, lo que sea mayor) → activa membresía paga |
-| 🔑 Reset clave | Cambia la clave de cualquier usuario |
-| 📜 Historial de ingresos | **Tabla `login_history` independiente**: cada login (normal y master) y cada acción del panel. Solo visible para el acceso master |
-
-Cada acción registra un evento `crud` con detalle en el historial (quién, qué y cuándo).
-Los usuarios normales (admin incluido) no ven nada de este panel.
-
-## 🔑 Secrets (Streamlit Cloud → App → Settings → Secrets)
+## 🔑 Secrets requeridos (Streamlit Cloud → App → Settings → Secrets)
 
 ```toml
 odds_api     = "tu-clave"        # https://the-odds-api.com/ (h2h + totals)
 openai       = "tu-clave"        # OpenAI API key
-SUPABASE_URL = "https://tu-proyecto.supabase.co"   # ver sección Supabase ↑
-SUPABASE_KEY = "eyJhbGciOi...service_role key..."  # service_role, NUNCA anon
 email_user   = "tu-correo@gmail.com"
 email_pass   = "app-password"    # Contraseña de aplicación de Google
 
