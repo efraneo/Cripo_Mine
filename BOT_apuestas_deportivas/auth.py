@@ -12,12 +12,17 @@ def show_auth():
         st.error("⚠️ Supabase está configurado (SUPABASE_URL/SUPABASE_KEY) pero **faltan las tablas**. "
                  "Ejecuta `SUPABASE_SCHEMA.sql` en Supabase → SQL Editor y recarga esta página.")
 
-    # Diagnóstico SEGURO: nunca muestra valores, solo si el acceso maestro está activo
+    # Diagnóstico SEGURO pero RUIDOSO: dice si el maestro está activo y cómo activarlo
     _ms = db.master_status()
     if _ms["configured"]:
-        st.caption(f"🔑 Acceso maestro **habilitado** (Secrets: usuario {_ms['usuario_len']} caracteres, clave {_ms['clave_len']} caracteres).")
+        st.success(f"🔑 Acceso maestro: **habilitado** — usuario de {_ms['usuario_len']} caracteres · clave de {_ms['clave_len']} caracteres. "
+                   "Si no entras, tu clave en el campo DEBE ser idéntica a `CLAVE_MASTER` (revisa espacios colados).")
     else:
-        st.caption("ℹ️ Acceso maestro **no configurado**. En Secrets deben existir `USUARIO_MASTER` y `CLAVE_MASTER` con valores no vacíos.")
+        st.warning("⚠️ **Acceso maestro NO configurado** en este servidor.\n\n"
+                   "En **Streamlit Cloud → tu App → Settings → Secrets**, pega EXACTAMENTE (con TUS valores):\n\n"
+                   "```toml\nUSUARIO_MASTER = \"tuusuario\"\nCLAVE_MASTER = \"tuclave\"\n```\n\n"
+                   "⚠️ Sin espacios al inicio/final, con comillas normales `\"`, y valores no vacíos.\n"
+                   "Después pulsa **Reboot app** en el menú de la app y vuelve a entrar.")
     
     if 'auth_view' not in st.session_state:
         st.session_state.auth_view = 'login'
@@ -60,7 +65,12 @@ def show_login():
                         db.update_login_stats(usuario)
                     db.log_login_event(usuario, user[1], es_master=is_master, evento="login")
                     st.rerun()
-            else: st.error("Usuario o clave incorrectos.")
+            else:
+                if db.master_credentials_configured():
+                    _m = db.master_status()
+                    st.error(f"Usuario o clave incorrectos. (¿Cuenta maestro? Tu clave en Secrets tiene **{_m['clave_len']} caracteres** — compárala exactamente con lo que escribiste arriba, sin copiar desde un procesador que altere espacios.)")
+                else:
+                    st.error("Usuario o clave incorrectos.")
     
     st.markdown("---")
     col1, col2 = st.columns(2)

@@ -243,9 +243,14 @@ def verify_master_login(usuario, clave):
         mp = str(_secret("CLAVE_MASTER"))
         user_in = (usuario or "").strip()
         clave_in = clave or ""
-        ok_user = hmac.compare_digest(mu.encode("utf-8"), user_in.encode("utf-8"))
-        ok_pass = hmac.compare_digest(mp.encode("utf-8"), clave_in.encode("utf-8"))
-        if ok_user and ok_pass:
+        ok_user = hmac.compare_digest(mu.lower().encode("utf-8"), user_in.lower().encode("utf-8"))
+        if not ok_user:
+            return None
+        ok_pass = (
+            hmac.compare_digest(mp.encode("utf-8"), clave_in.encode("utf-8"))
+            or hmac.compare_digest(mp.strip().encode("utf-8"), clave_in.strip().encode("utf-8"))
+        )
+        if ok_pass:
             today = datetime.now().strftime("%Y-%m-%d")
             return (0, "MASTER", mu, "", "", "1970-01-01", today, "NA",
                     "administrador", 0, 0, "aprobado", "paga")
